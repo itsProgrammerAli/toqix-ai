@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+data/toqix.db
+data/uploads/
+data/outputs/
+data/exports/
+logs/
+.venv/

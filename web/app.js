@@ -542,6 +542,9 @@
       return '<div class="media failed"><div class="fail">Failed — try again' +
         (j.error ? "<br><span>" + esc(j.error) + "</span>" : "") + "</div></div>";
     }
+    if (st === "cancelled") {
+      return '<div class="media cancelled"><div class="note">Cancelled</div></div>';
+    }
     // queued
     return '<div class="media queued"><div class="note big">In queue — generation will start soon</div></div>';
   }

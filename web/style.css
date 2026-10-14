@@ -136,6 +136,7 @@ main.agent-mode { padding-bottom: 48px; }
 .media .note.big { font-size: 15px; padding: 0 12px; }
 .media .fail { color: #ff7b7b; font-size: 15px; max-width: 90%; line-height: 1.5; }
 .media .fail span { color: rgba(255,255,255,.5); font-size: 12.5px; }
+.media.cancelled { opacity: .5; }
 
 .body { padding: 15px 17px 17px; display: flex; flex-direction: column; gap: 8px; }
 .prompt-line { font-size: 15px; line-height: 1.45; }

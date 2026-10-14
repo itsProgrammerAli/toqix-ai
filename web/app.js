@@ -352,6 +352,22 @@
     if (e.key === "Enter") { e.preventDefault(); sendFromInput(); }
   });
 
+  /* Knowledge shortcuts: two extra quick chips, built here so the
+     markup stays untouched. They sit in the same row and send their
+     words exactly like the static chips (bound by the loop below). */
+  (function addKnowledgeChips() {
+    var row = document.querySelector(".quick-chips");
+    if (!row) return;
+    ["Give me an idea", "Plan a series"].forEach(function (label) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip";
+      b.setAttribute("data-quick", label);
+      b.textContent = label;
+      row.appendChild(b);
+    });
+  })();
+
   Array.prototype.forEach.call(document.querySelectorAll("[data-quick]"), function (b) {
     b.addEventListener("click", function () {
       if (state.agentBusy) return;

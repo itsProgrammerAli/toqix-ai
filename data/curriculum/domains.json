@@ -31,7 +31,13 @@
         "kheet",
         "bagh",
         "ped",
-        "darakht"
+        "darakht",
+        "suraj",
+        "doob",
+        "doobta",
+        "ghuroob",
+        "sunset",
+        "sunrise"
       ],
       "label": "Nature & Landscapes",
       "lighting_default": "natural outdoor light",

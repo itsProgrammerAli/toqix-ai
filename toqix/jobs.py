@@ -19,7 +19,8 @@ from .prompt_engine import enhance_prompt
 
 _LOCK = threading.Lock()
 
-STATUSES = ("queued", "exported", "generating", "running", "done", "failed")
+STATUSES = ("queued", "exported", "generating", "running", "done", "failed",
+            "cancelled")
 KINDS = ("video", "image", "audio", "chat")
 
 

@@ -50,9 +50,27 @@ without ever breaking the scripted collect flow
                subject+action+place+light+camera formula, "queue it"
                makes it the next part;
   * Plan     — "plan a series about a lost astronaut" lays out a
-               4-beat genre outline (state confirm_plan); "yes" queues
-               all four parts, "no" drops it;
+               4-beat genre OUTLINE (state confirm_plan); "yes" queues
+               all four parts, "no" drops it. An outline is a plan —
+               it is never called a story;
+  * Stories  — "write a story about a brave little fox" returns a
+               REAL written story (story.py: named hero, scenes,
+               dialogue, beginning/middle/end in prose), and
+               "make it a series" splits that story into queued
+               parts through the same consistency wiring;
   * Small talk + a capabilities fallback instead of dead ends.
+
+Behaviour contract (owner's rules, enforced in chat()):
+  * a pure greeting (salaam / hi / hello …) ALWAYS gets a warm
+    greeting + a short guide back — never swallowed as a flow
+    answer, never creates anything;
+  * a question is ANSWERED, never generated — even in "ready"
+    state, even if it contains scene-like words;
+  * in "ready" state, plain descriptive text is NOT auto-queued:
+    the agent asks first ("Want me to queue this as your next
+    part?") and queues only on a clear yes, or immediately when
+    the intent is unmistakable (Part N: / scene: prefixes, explicit
+    generation verbs, queue idea N, queue it, confirmations).
 """
 
 from __future__ import annotations
@@ -63,7 +81,7 @@ import threading
 import time
 import uuid
 
-from . import config, jobs, knowledge
+from . import config, jobs, knowledge, story
 from .prompt_engine import STYLE_PRESETS
 
 _LOCK = threading.Lock()
@@ -295,15 +313,17 @@ def _ask_character_reply() -> str:
 
 def _ask_style_reply(project: dict) -> str:
     return (
-        "Character locked in — that description is now the anchor for "
-        "every part.\n"
-        f"Pick a style: {_style_options_text()} — or describe your own."
+        "Saved ✓ — this character will stay the same in every part.\n"
+        f"Now pick a style: {_style_options_text()} — or describe "
+        "your own. (One style for all parts, so the whole series "
+        "looks like one family.)"
     )
 
 
 def _ask_kind_reply(project: dict) -> str:
     return (
-        f"Style set to {_style_label(project['style'])}. "
+        f"Style saved ✓ — every part will share "
+        f"{_style_label(project['style'])}.\n"
         "Last choice: what should I make — video, image, or audio? "
         "(video is the default)"
     )
@@ -313,7 +333,8 @@ def _ask_voice_reply(project: dict) -> str:
     return (
         "Audio it is. Pick the voice for the whole series: "
         + ", ".join(VOICES)
-        + f". ({DEFAULT_VOICE} is the default)"
+        + f". ({DEFAULT_VOICE} is the default — one voice for every "
+        "part, so it always sounds like the same person.)"
     )
 
 
@@ -330,7 +351,10 @@ def _ready_reply(project: dict) -> str:
         "(locked — same seed and same character in every part, "
         "that's the consistency trick).\n"
         "Now just send scenes, like \"Part 1: he walks into the old "
-        "city at dawn\" — each one queues a new part. "
+        "city at dawn\" — each one queues a new part. (You can also "
+        "simply describe a scene and I'll check with you before "
+        "queueing it.) Queued parts appear in your Creations feed "
+        "and generate when the studio runs. "
         "Say \"status\" anytime to check progress."
     )
 
@@ -513,8 +537,9 @@ def _queue_parsed_scene(project: dict, scene: str, kind: str) -> dict:
 
     summary = scene[:60] + ("…" if len(scene) > 60 else "")
     reply = (
-        f"Queued Part {part_no} — {summary}. "
-        "Same character, same style."
+        f"Queued Part {part_no} ✓ — {summary}. "
+        "Same character, same style — it will appear in your "
+        "Creations feed and generate when the studio runs."
     )
     return _result(reply, project, created_jobs=[job["id"]])
 
@@ -562,9 +587,10 @@ _IDEA_STRONG = {"idea", "ideas", "suggest", "suggestion", "suggestions",
 _IDEA_TRIGGERS = {"give", "do", "de", "batao", "chahiye", "want",
                   "need", "koi", "dikhao", "sunao"}
 
-_QUESTION_FIRST = {"what", "how", "why", "which", "is", "are", "can",
-                   "do", "does", "explain", "kia", "kya", "kaise",
-                   "kis", "kon", "konsa"}
+_QUESTION_FIRST = {"what", "how", "why", "when", "which", "is", "are",
+                   "can", "do", "does", "explain", "kia", "kya",
+                   "kaise", "kis", "kon", "konsa", "kyun", "kyu",
+                   "kab", "batao", "samjhao"}
 
 _PLAN_SERIES = re.compile(
     r"plan\s+(?:a\s+)?series\s*(?:about\s+)?(.+)?$", re.IGNORECASE)
@@ -637,7 +663,17 @@ def _is_thanks(norm: str) -> bool:
     return 0 < len(toks) <= 6 and all(t in _THANKS_TOKENS for t in toks)
 
 
+_HOW_ARE_YOU = {"how are you", "how are you doing", "how r you",
+                "how are u", "kaise ho", "kese ho", "kaisi ho",
+                "kya haal", "kya haal hai", "haal kaisa hai",
+                "kaise hain", "aap kaise ho", "tum kaise ho"}
+
+
 def _smalltalk_reply(norm: str) -> str | None:
+    if norm in _HOW_ARE_YOU or norm.startswith("how are you"):
+        return ("I'm very well, thank you for asking! Running "
+                "happily and ready when you are — shall we make "
+                "something?")
     if norm in _BYE_PHRASES:
         return ("Goodbye! Your series will be right here when you "
                 "come back.")
@@ -671,6 +707,8 @@ def _capabilities_reply(project: dict | None) -> str:
         "• Improve a rough prompt — say \"improve: a cat walking\"",
         "• Plan a whole series — say \"plan a series about a lost "
         "robot\"",
+        "• Hear a real story — say \"write a story about a brave "
+        "little fox\", then \"make it a series\" to film it",
     ]
     if project and project["state"] == "ready":
         lines.append(
@@ -707,6 +745,249 @@ def _qa_reply(project: dict | None, entry: dict) -> dict:
     elif project["state"] != "ready":
         reply += _question_suffix(project)
     return _result(reply, project)
+
+
+# --- greetings: a greeting always gets a greeting -------------------------
+_GREETING_TOKENS = {
+    "hi", "hello", "hey", "salam", "salaam", "aoa", "assalam",
+    "alaikum", "o", "wa", "walaikum", "waalaikum", "there",
+    "everyone", "guys", "assalamualaikum", "assalamo",
+}
+_GREETING_CORE = {"hi", "hello", "hey", "salam", "salaam", "aoa",
+                  "assalam", "assalamualaikum"}
+
+
+def _is_pure_greeting(norm: str) -> bool:
+    """The WHOLE message is a greeting — 'hi', 'assalam o alaikum',
+    'aoa', 'hello there'. Content-bearing messages never match."""
+    toks = norm.split()
+    if not toks or len(toks) > 5:
+        return False
+    if not all(t in _GREETING_TOKENS for t in toks):
+        return False
+    return bool(set(toks) & _GREETING_CORE)
+
+
+_ISLAMIC_GREETING = {"salam", "salaam", "aoa", "assalam",
+                     "alaikum", "assalamualaikum"}
+
+
+def _greeting_reply(project: dict | None, norm: str = "") -> str:
+    islamic = bool(set(norm.split()) & _ISLAMIC_GREETING)
+    if islamic:
+        opener = "Wa-alaikum assalam! Welcome to TOQIX."
+    elif project is not None:
+        opener = "Hello again! Welcome back to TOQIX."
+    else:
+        opener = "Hello, and welcome to TOQIX!"
+    lines = [
+        opener,
+        "I'm your TOQIX Agent. Here's what I can do:",
+        "• Answer questions — styles, camera shots, voices, how to "
+        "write a good prompt",
+        "• Write you a real story — try \"write a story about a "
+        "brave little fox\"",
+        "• Run a consistent series — one character, the same in "
+        "every video, image or voice part",
+        "• Suggest ideas and polish rough prompts",
+    ]
+    if project is None:
+        lines.append(
+            "Want to start a series, hear a story, or ask me "
+            "something?")
+    elif project["state"] == "confirm_plan":
+        lines.append(
+            "Your series outline is still waiting, by the way — "
+            "say yes to queue all 4 parts, or no to drop it.")
+    elif project["state"] != "ready":
+        lines.append(
+            "We were in the middle of setting up your series."
+            + _question_suffix(project))
+    else:
+        lines.append(
+            "Your series is ready whenever you are — send a scene, "
+            "or ask me anything.")
+    return "\n".join(lines)
+
+
+# --- questions are answered, never generated ------------------------------
+def _question_reply(project: dict | None, message: str) -> dict:
+    """A question gets an answer: the KB when a topic matches, else
+    the capabilities guide. It NEVER creates a job and never gets
+    swallowed as a flow answer — in any state."""
+    entry = knowledge.lookup(message)
+    if entry:
+        return _qa_reply(project, entry)
+    reply = _capabilities_reply(project)
+    if project is not None and project["state"] != "ready":
+        reply += _question_suffix(project)
+    return _result(reply, project)
+
+
+# --- stories (story.py) -----------------------------------------------------
+_STORY_FILLER = {
+    "write", "a", "an", "the", "story", "stories", "kahani",
+    "sunao", "likho", "batao", "tell", "me", "please", "plz",
+    "ek", "aik", "ki", "ka", "ke", "about", "on", "of",
+}
+_STORY_GENRE_ONLY = {
+    "horror", "scary", "funny", "comedy", "adventure", "sci",
+    "fi", "kids", "bedtime", "spooky", "romantic", "romance",
+}
+_STORY_TRIGGERS = {"write", "tell", "sunao", "likho", "batao",
+                   "about"}
+
+
+def _story_request(message: str, norm: str) -> tuple[bool, str]:
+    """(True, topic) when the message asks for a written story;
+    topic may be '' (ask for a hero). (False, '') otherwise."""
+    toks = norm.split()
+    tokset = set(toks)
+    storyish = bool(tokset & {"story", "stories", "kahani"}) \
+        or "sunao" in tokset
+    if not storyish or not (tokset & _STORY_TRIGGERS):
+        return (False, "")
+    topic = ""
+    m = re.search(r"\babout\s+(.+)$", message,
+                  re.IGNORECASE | re.DOTALL)
+    if m:
+        topic = m.group(1).strip().rstrip(".")
+    if not topic:
+        for sep in ("—", "–", " - ", ":"):
+            if sep in message:
+                head, _, tail = message.rpartition(sep)
+                if set(_norm(head).split()) & {
+                        "story", "stories", "kahani", "sunao",
+                        "likho"}:
+                    topic = tail.strip().rstrip(".")
+                    break
+    if not topic:
+        rest = [t for t in toks if t not in _STORY_FILLER
+                and t not in _STORY_GENRE_ONLY]
+        topic = " ".join(rest)
+    return (True, topic)
+
+
+_STORY_ASK_TEXT = (
+    "A story — lovely! About whom? Give me a hero — like \"a "
+    "brave little fox\" — and I'll write it properly, with a "
+    "beginning, a middle and an end."
+)
+
+_SERIES_OFFER = (
+    "Want this story as a video series? Say \"make it a "
+    "series\" — I'll split it into parts and queue them with "
+    "the same character."
+)
+
+
+def _story_reply(project: dict | None, topic: str,
+                 message: str = "") -> dict:
+    """Write a REAL story with the story engine and remember it
+    (pending store) so 'make it a series' can film it."""
+    if project is not None and project["character"] and not topic:
+        premise = project["character"]
+    else:
+        premise = topic or (project["character"] if project else "")
+    genre = story.detect_genre(f"{message} {premise}")
+    seed = project["seed"] if project else None
+    made = story.assemble(premise, genre=genre, seed=seed)
+    key = project["id"] if project else _NO_PROJECT_KEY
+    _pending_set(key, story={
+        "title": made["title"], "scenes": made["scenes"],
+        "anchor": made["anchor"], "premise": premise,
+    })
+    reply = (f"{made['title']}\n\n{made['story']}\n\n"
+             f"{_SERIES_OFFER}")
+    return _result(reply, project)
+
+
+_MAKE_SERIES_EXACT = {
+    "make it a series", "make this a series", "make it series",
+    "make series", "series banao", "series bana do",
+    "make it a video series", "isko series banao",
+    "make a series",
+}
+
+
+def _is_make_series(norm: str) -> bool:
+    return norm in _MAKE_SERIES_EXACT or "make it a series" in norm
+
+
+def _series_from_story(project: dict | None) -> dict:
+    """'make it a series' — film the last written story: ensure a
+    project (anchor = the story's hero), then queue the story's 4
+    scenes as parts through the normal consistency wiring."""
+    key = project["id"] if project else _NO_PROJECT_KEY
+    data = _pending_get(key).get("story")
+    if not data and project is not None:
+        data = _pending_get(_NO_PROJECT_KEY).get("story")
+    if not data:
+        return _result(
+            "First let me write you a story — say \"write a story "
+            "about a brave little fox\" — and then say \"make it a "
+            "series\" and I'll split it into parts and queue them.",
+            project,
+        )
+    if project is None:
+        project = _create_project(data["anchor"])
+    fields: dict = {}
+    if not project["character"]:
+        fields["character"] = data["anchor"]
+        fields["name"] = _derive_name(data["anchor"])
+    if not project["style"]:
+        fields["style"] = "cinematic"
+    fields["state"] = "ready"
+    project = _update_project(project["id"], **fields)
+    created: list[str] = []
+    for scene in data["scenes"]:
+        res = _queue_parsed_scene(
+            project, scene, project["kind_default"])
+        created.extend(res["created_jobs"])
+    _pending_clear(project["id"], "story")
+    if key != project["id"]:
+        _pending_clear(key, "story")
+    return _result(
+        f"Done ✓ — \"{data['title']}\" is now your series: queued "
+        f"{len(created)} parts, all with the same character "
+        f"({data['anchor']}), style and seed. They'll appear in "
+        "your Creations feed and generate when the studio runs. "
+        "Say \"status\" to watch them come in.",
+        project,
+        created_jobs=created,
+    )
+
+
+# --- ready-state generation must be unmistakable ---------------------------
+_PART_EXPLICIT = re.compile(
+    r"^(?:part\s*\d+|next\s+(?:scene|part)|scene\s*\d*|"
+    r"agla\s+(?:scene|hissa|part))\s*[:\-]",
+    re.IGNORECASE,
+)
+_GEN_VERB = re.compile(
+    r"^(?:make|create|generate|produce|render|draw|paint)\b",
+    re.IGNORECASE,
+)
+_GEN_KIND_WORDS = {"video", "image", "picture", "photo", "audio",
+                   "clip", "voice", "scene", "part"}
+
+
+def _is_explicit_generation(message: str, norm: str) -> bool:
+    """Unmistakable 'make this now' intent: a Part/scene prefix with
+    its colon, an image/audio prefix, a generation verb with a kind
+    word, or 'banao' carrying a scene. Plain description is NOT
+    generation any more — the agent asks first."""
+    text = message.strip()
+    if _PART_EXPLICIT.match(text):
+        return True
+    if _AUDIO_PREFIX.match(text) or _IMAGE_PREFIX.match(text):
+        return True
+    if _GEN_VERB.match(text) and (
+            set(norm.split()) & _GEN_KIND_WORDS
+            or " of " in f" {norm} "):
+        return True
+    toks = norm.split()
+    return "banao" in toks and len(toks) >= 3
 
 
 # --- ideas ----------------------------------------------------------------
@@ -870,11 +1151,14 @@ def _plan_reply(project: dict | None, premise: str, norm: str) -> dict:
         beats.append(woven[:1].upper() + woven[1:])
     _pending_set(project["id"], plan=beats)
     lines = [
-        f"Here's a 4-part {template['label']} plan for "
+        f"Here's a 4-part {template['label']} outline for "
         f"\"{_derive_name(hero)}\":"
     ]
     for label, beat in zip(knowledge.beat_labels(), beats):
         lines.append(f"{label} — {beat}")
+    lines.append(
+        "(This is an outline — the plan for the series. For a full "
+        "written story instead, say \"write a story about …\".)")
     lines.append("Queue all 4 parts? Say yes — or no to drop the plan.")
     return _result("\n".join(lines), project)
 
@@ -966,16 +1250,74 @@ def _midflow_greeting(project: dict) -> str:
     )
 
 
+_GENERIC_TOKENS = {
+    "write", "make", "create", "generate", "build", "tell", "give",
+    "show", "help", "do", "please", "plz", "me", "us", "a", "an",
+    "the", "video", "videos", "story", "stories", "series", "film", "banana",
+    "movie", "image", "picture", "audio", "song", "something",
+    "anything", "some", "one", "new", "kuch", "kahani", "ek", "bana",
+    "banao", "likho", "likh", "karo", "kar", "de", "do", "hai", "chahiye",
+}
+
+
+def _is_generic_instruction(norm: str) -> bool:
+    """True for bare commands with no creative content of their own
+    ("write a story", "make a video", "ek kahani likho", "help me").
+    Such a message is an intent, never a character description: every
+    token is a verb / generic object / filler, nothing descriptive
+    remains. A real character ("a small robot with a red scarf")
+    always leaves descriptive tokens behind and returns False."""
+    toks = norm.split()
+    if not toks or len(toks) > 6:
+        return False
+    if not all(t in _GENERIC_TOKENS for t in toks):
+        return False
+    # "banana" is also a fruit: a bare "a banana" stays a character.
+    verbs = {"write", "make", "create", "generate", "build",
+             "tell", "give", "show", "help", "do", "bana",
+             "banao", "likho", "karo"}
+    intent = any(t in verbs for t in toks) or "hai" in toks \
+        or "kuch" in toks or "chahiye" in toks
+    return intent
+
+
+def _generic_instruction_reply() -> str:
+    return (
+        "Got it — happy to! I just need one thing from you first: "
+        "WHO or WHAT is it about? Describe the character or scene in "
+        "a few words (e.g. \"a small robot with a red scarf\") and "
+        "I'll lock it in, pick a style with you, and queue the parts. "
+        "Or say \"give me an idea\" and I'll suggest some."
+    )
+
+
 def _chat_no_project(message: str, low: str, norm: str) -> dict:
-    """No series yet. Knowledge, ideas, improve and planning all work
-    standalone; anything else substantive IS the character description
-    and starts a series (the original behaviour)."""
-    if _is_greeting(low):
-        return _result(_ask_character_reply(), None)
+    """No series yet. Greetings get the welcome guide; questions
+    get answers; stories get written; knowledge, ideas, improve and
+    planning all work standalone; anything else substantive IS the
+    character description and starts a series."""
+    if _is_pure_greeting(norm):
+        return _result(_greeting_reply(None, norm), None)
 
     smalltalk = _smalltalk_reply(norm)
     if smalltalk:
         return _result(smalltalk, None)
+
+    is_story, topic = _story_request(message, norm)
+    if is_story:
+        if not topic:
+            _pending_set(_NO_PROJECT_KEY, story_ask=True)
+            return _result(_STORY_ASK_TEXT, None)
+        return _story_reply(None, topic, message)
+
+    if _is_make_series(norm):
+        return _series_from_story(None)
+
+    if _is_question(message, norm):
+        return _question_reply(None, message)
+
+    if _is_greeting(low):
+        return _result(_ask_character_reply(), None)
 
     premise = _plan_premise(message, norm)
     if premise is not None:
@@ -996,18 +1338,23 @@ def _chat_no_project(message: str, low: str, norm: str) -> dict:
         return _ideas_reply(None, norm)
 
     entry = None
-    if _is_question(message, norm):
-        entry = knowledge.lookup(message)
-    else:
-        cand = knowledge.lookup(message)
-        if (cand and knowledge.match_ratio(message, cand) >= 0.6
-                and len(norm.split()) <= 5):
-            entry = cand
+    cand = knowledge.lookup(message)
+    if (cand and knowledge.match_ratio(message, cand) >= 0.6
+            and len(norm.split()) <= 5):
+        entry = cand
     if entry:
         return _qa_reply(None, entry)
 
     if _looks_like_gibberish(norm):
         return _result(_capabilities_reply(None), None)
+
+    # The user was asked "about whom?" — this message IS the topic.
+    if _pending_get(_NO_PROJECT_KEY).get("story_ask"):
+        _pending_clear(_NO_PROJECT_KEY, "story_ask")
+        return _story_reply(None, message.strip(), message)
+
+    if _is_generic_instruction(norm):
+        return _result(_generic_instruction_reply(), None)
 
     # First substantive message = the character description.
     project = _create_project(message)
@@ -1051,6 +1398,13 @@ def chat(project_id: str | None, message: str) -> dict:
     if command is not None:
         return command
 
+    # A pure greeting gets a warm greeting back in ANY state —
+    # never swallowed as a flow answer, never creates anything.
+    # (A plan awaiting confirmation stays pending; the greeting
+    # reply reminds the user it is still there.)
+    if _is_pure_greeting(norm):
+        return _result(_greeting_reply(project, norm), project)
+
     # A plan awaiting confirmation beats everything else.
     if project["state"] == "confirm_plan":
         return _confirm_plan_reply(project, norm)
@@ -1062,6 +1416,22 @@ def chat(project_id: str | None, message: str) -> dict:
 
     if _is_greeting(low):
         return _result(_midflow_greeting(project), project)
+
+    is_story, topic = _story_request(message, norm)
+    if is_story:
+        if not topic:
+            _pending_set(project["id"], story_ask=True)
+            return _result(_STORY_ASK_TEXT, project)
+        return _story_reply(project, topic, message)
+
+    if _is_make_series(norm):
+        return _series_from_story(project)
+
+    # A question is answered, never generated — this outranks the
+    # scene interpretation even in "ready" state, even when the
+    # question contains scene-like words.
+    if _is_question(message, norm):
+        return _question_reply(project, message)
 
     m = _QUEUE_IDEA.search(message) or _QUEUE_IDEA_ALT.search(message)
     if m:
@@ -1092,10 +1462,13 @@ def chat(project_id: str | None, message: str) -> dict:
     if _is_idea_request(norm):
         return _ideas_reply(project, norm)
 
+    # The user was asked "about whom?" for a story — this is it.
+    if _pending_get(project["id"]).get("story_ask"):
+        _pending_clear(project["id"], "story_ask")
+        return _story_reply(project, message.strip(), message)
+
     entry = None
-    if _is_question(message, norm):
-        entry = knowledge.lookup(message)
-    elif project["state"] == "ready":
+    if project["state"] == "ready":
         # A short bare topic in ready state ("cyberpunk style",
         # "drone shot") is a question, not a scene — but only when
         # the topic fills most of the message.
@@ -1143,16 +1516,55 @@ def chat(project_id: str | None, message: str) -> dict:
         )
         return _result(_ready_reply(project), project)
 
-    # state == "ready": greetings get a nudge, everything else is a scene.
+    # state == "ready": greetings get a nudge; a scene offered for
+    # confirmation is queued only on a clear yes; explicit
+    # generation queues at once; plain description is ASKED about,
+    # never auto-queued.
     if _is_greeting(low):
         return _result(
             "Your series is ready — send the next scene, or say "
             "\"status\" to see the parts so far.",
             project,
         )
+
+    pend = _pending_get(project["id"])
+    if pend.get("scene_confirm"):
+        if norm in _YES_WORDS or norm.startswith(("yes", "haan")):
+            scene_message = pend["scene_confirm"]
+            _pending_clear(project["id"], "scene_confirm")
+            return _queue_scene(project, scene_message)
+        if norm in _NO_WORDS or norm.startswith("no "):
+            _pending_clear(project["id"], "scene_confirm")
+            return _result(
+                "No problem — dropped it. Describe another scene "
+                "whenever you're ready, or ask me anything.",
+                project,
+            )
+
+    if norm in _YES_WORDS or norm in _NO_WORDS:
+        return _result(
+            "Got it! Nothing is waiting on a yes right now — "
+            "describe a scene and I'll check with you before "
+            "queueing, or start with \"Part 1:\" to queue instantly.",
+            project,
+        )
+
     if _looks_like_gibberish(norm):
         return _result(_capabilities_reply(project), project)
-    return _queue_scene(project, message)
+
+    if _is_explicit_generation(message, norm):
+        return _queue_scene(project, message)
+
+    scene_text = " ".join(message.split())
+    summary = scene_text[:60] + ("…" if len(scene_text) > 60 else "")
+    part_no = len(jobs.list_project_jobs(project["id"])) + 1
+    _pending_set(project["id"], scene_confirm=message)
+    return _result(
+        f"\"{summary}\" — love it. Want me to queue this as Part "
+        f"{part_no} of \"{project['name']}\"? Say yes and it's in — "
+        "same character, same style. Or just keep chatting.",
+        project,
+    )
 
 
 init_db()

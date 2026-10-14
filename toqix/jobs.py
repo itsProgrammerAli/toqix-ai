@@ -55,6 +55,7 @@ def init_db() -> None:
                 domain          TEXT NOT NULL DEFAULT '',
                 kind            TEXT NOT NULL DEFAULT 'video',
                 progress        INTEGER NOT NULL DEFAULT 0,
+                project_id      TEXT DEFAULT NULL,
                 created_at      REAL NOT NULL,
                 updated_at      REAL NOT NULL
             )
@@ -69,6 +70,7 @@ def init_db() -> None:
             ("domain", "TEXT NOT NULL DEFAULT ''"),
             ("kind", "TEXT NOT NULL DEFAULT 'video'"),
             ("progress", "INTEGER NOT NULL DEFAULT 0"),
+            ("project_id", "TEXT DEFAULT NULL"),
         ):
             if col not in existing:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {ddl}")
@@ -78,6 +80,8 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["kind"] = d.get("kind") or "video"
     d["progress"] = int(d.get("progress") or 0)
+    # Series/agent jobs carry their project id; normal jobs are null.
+    d["project_id"] = d.get("project_id") or None
     d["consent"] = bool(d.get("consent", 0))
     # API-surface aliases for the flywheel feedback contract:
     # train_consent mirrors consent; feedback renders thumbs as up/down.
@@ -132,6 +136,7 @@ def create_job(
     consent: bool = False,
     domain: str = "",
     kind: str = "video",
+    project_id: str | None = None,
 ) -> dict:
     if model not in config.MODELS:
         raise ValueError(f"unknown model: {model}")
@@ -152,15 +157,16 @@ def create_job(
             INSERT INTO jobs (id, prompt, translated, enhanced_prompt,
                               negative_prompt, style, aspect, duration,
                               model, seed, status, consent, domain, kind,
-                              progress, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, 0, ?, ?)
+                              progress, project_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, 0, ?, ?, ?)
             """,
             (
                 job_id, enhanced["original"], enhanced["translated"],
                 enhanced["enhanced_prompt"], enhanced["negative_prompt"],
                 style, aspect, float(duration), model, int(seed),
                 1 if consent else 0,
-                domain or enhanced.get("domain", ""), kind, now, now,
+                domain or enhanced.get("domain", ""), kind,
+                project_id or None, now, now,
             ),
         )
     job = get_job(job_id)
@@ -183,6 +189,17 @@ def list_jobs(limit: int = 100) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def list_project_jobs(project_id: str, limit: int = 500) -> list[dict]:
+    """All jobs of one agent series project, oldest first (Part 1, 2, …)."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE project_id = ? "
+            "ORDER BY created_at ASC LIMIT ?",
+            (project_id, limit),
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
 

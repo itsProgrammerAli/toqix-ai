@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import config, curriculum, dataset, jobs, postprocess
+from . import agent, config, curriculum, dataset, jobs, postprocess
 
 app = FastAPI(title="TOQIX AI Studio", version="1.0.0")
 
@@ -48,6 +48,11 @@ class FeedbackIn(BaseModel):
 
 class DatasetBuildIn(BaseModel):
     include_low_rated: bool = False
+
+
+class AgentChatIn(BaseModel):
+    project_id: str | None = None   # null = no series yet / new series
+    message: str = Field(..., max_length=4000)
 
 
 @app.get("/")
@@ -282,6 +287,30 @@ async def import_result(job_id: str, file: UploadFile = File(...)):
         raise HTTPException(status_code=422, detail=f"import failed: {exc}")
 
     return jobs.get_job(job_id)
+
+
+@app.post("/api/agent/chat")
+def agent_chat(body: AgentChatIn):
+    """One turn with the TOQIX Agent: chat + consistent-series control.
+    The agent (toqix/agent.py) is a local deterministic state machine —
+    it collects a series bible (character / style / kind / voice), then
+    queues scene jobs that all share the project's character anchor,
+    style and FIXED seed via jobs.create_job(project_id=..., seed=...)."""
+    return agent.chat(body.project_id, body.message)
+
+
+@app.get("/api/projects")
+def list_projects():
+    """All agent series projects, newest first."""
+    return agent.list_projects()
+
+
+@app.get("/api/projects/{project_id}")
+def get_project(project_id: str):
+    detail = agent.get_project_detail(project_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="project not found")
+    return detail
 
 
 @app.get("/api/gallery")

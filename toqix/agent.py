@@ -32,11 +32,21 @@ the character description would be nonsense. For audio, consistency is
 the project's VOICE (passed as the job's style, which is what the runner
 maps to a TTS voice), plus the same fixed seed.
 
-The brain is fully local and deterministic: a small keyword state
+The brain is local and deterministic first: a small keyword state
 machine over a SQLite `projects` table (same DB as jobs), plus an
 understanding layer fed by a curated knowledge base (knowledge.py).
-No LLM calls, no network, no external APIs — same input, same reply,
-every time.
+Same input, same reply, every time — for everything the studio
+itself knows.
+
+One layer sits BEHIND all of that: free-form conversation the
+deterministic brain cannot answer (a question the knowledge base
+misses, open chat) is handed to a real LLM that runs on the owner's
+own GPU worker fleet — never an external API. The agent packs the
+conversation into a kind="chat" job; a chat-capable worker claims
+it, generates the reply and posts it back (see jobs.set_reply and
+the /api/agent/chat/{job_id} poll endpoint). When no chat worker is
+online, the agent falls back to the built-in capabilities answer —
+it never dead-ends.
 
 The understanding layer (see chat()) runs around the state machine
 without ever breaking the scripted collect flow
@@ -58,7 +68,14 @@ without ever breaking the scripted collect flow
                dialogue, beginning/middle/end in prose), and
                "make it a series" splits that story into queued
                parts through the same consistency wiring;
-  * Small talk + a capabilities fallback instead of dead ends.
+  * Small talk + a capabilities fallback instead of dead ends;
+  * LLM chat — a question the knowledge base misses becomes a
+               chat job for the fleet's LLM worker when one is
+               online (pending reply, polled by the web layer);
+               the reply may end with a hidden [[QUEUE ...]]
+               directive, which the server turns into a real
+               creation job (parse_queue_directive /
+               queue_from_directive below).
 
 Behaviour contract (owner's rules, enforced in chat()):
   * a pure greeting (salaam / hi / hello …) ALWAYS gets a warm
@@ -75,6 +92,7 @@ Behaviour contract (owner's rules, enforced in chat()):
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 import threading
@@ -812,16 +830,244 @@ def _greeting_reply(project: dict | None, norm: str = "") -> str:
 
 # --- questions are answered, never generated ------------------------------
 def _question_reply(project: dict | None, message: str) -> dict:
-    """A question gets an answer: the KB when a topic matches, else
-    the capabilities guide. It NEVER creates a job and never gets
-    swallowed as a flow answer — in any state."""
+    """A question gets an answer: the KB when a topic matches; else,
+    when a chat worker is online, the fleet's LLM (a chat job — the
+    reply is pending, never instant); else the capabilities guide.
+    It NEVER queues a creation job and never gets swallowed as a
+    flow answer — in any state."""
     entry = knowledge.lookup(message)
     if entry:
         return _qa_reply(project, entry)
+    pending = _llm_chat_reply(project, message)
+    if pending is not None:
+        return pending
     reply = _capabilities_reply(project)
     if project is not None and project["state"] != "ready":
         reply += _question_suffix(project)
     return _result(reply, project)
+
+
+# ---------------------------------------------------------------------------
+# LLM chat — free-form conversation on the owner's own GPU fleet.
+#
+# The deterministic brain answers everything it knows, instantly.
+# What it cannot know — a question the knowledge base misses, open
+# conversation — is packed into a kind="chat" job whose prompt is a
+# JSON {"messages": [...]} conversation. A chat-capable fleet worker
+# claims it like any other job, runs its local LLM, and posts the
+# reply back; the web layer polls GET /api/agent/chat/{job_id}.
+# ---------------------------------------------------------------------------
+
+_CHAT_SYSTEM = (
+    "You are TOQIX, the friendly AI assistant inside TOQIX AI — a "
+    "creation studio where anyone can turn a simple text prompt "
+    "into videos, images and voiceovers.\n"
+    "\n"
+    "How you talk:\n"
+    "- Chat naturally, like a warm and smart friend: answer general "
+    "questions, discuss ideas, write stories, poems and scripts, "
+    "give advice, explain things simply.\n"
+    "- Mirror the user's language — English, Roman Urdu or "
+    "Hinglish. If they write in Roman Urdu, answer in Roman Urdu; "
+    "if in English, answer in English.\n"
+    "- Be warm and concise: short, clear answers unless the user "
+    "asks for depth or a full piece of writing.\n"
+    "- You have no live internet and no today's-facts feed. If you "
+    "don't know something, say so honestly instead of inventing "
+    "facts.\n"
+    "\n"
+    "Creating with TOQIX:\n"
+    "- TOQIX creates videos, images and voiceovers from prompts, "
+    "right here in this studio.\n"
+    "- If — and only if — the user asks you to actually CREATE, "
+    "MAKE or GENERATE a video, image or audio, reply warmly in the "
+    "conversation AND end your message with exactly one hidden "
+    "directive line in this exact format:\n"
+    "[[QUEUE kind=video prompt=\"...\" style=\"...\" "
+    "aspect=\"16:9\"]]\n"
+    "kind is one of video, image, audio. For video/image, style is "
+    "a style name like cinematic, anime, cyberpunk, realistic, "
+    "cartoon, painting or watercolor. For audio, style is a voice "
+    "name: Ava, Emma, Michael, George, Sky or Adam. aspect is "
+    "16:9, 9:16 or 1:1 (optional). The prompt inside the directive "
+    "must be a complete, vivid creation prompt that you write from "
+    "what the user asked for. Never show, mention or explain the "
+    "directive line itself."
+)
+
+_CHAT_HISTORY_EXCHANGES = 6  # user+assistant turns kept as context
+
+
+def _chat_worker_online() -> bool:
+    """True when at least one fleet worker with the "chat"
+    capability pinged recently enough to count as online."""
+    try:
+        return any(
+            w.get("online") and "chat" in (w.get("caps") or [])
+            for w in jobs.list_workers()
+        )
+    except Exception:
+        return False
+
+
+def _pack_user_text(pack_json: str) -> str:
+    """The last user message inside a stored chat pack ('' when the
+    pack is unreadable — history simply skips that turn)."""
+    try:
+        messages = json.loads(pack_json).get("messages", [])
+    except (TypeError, ValueError):
+        return ""
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            return msg.get("content") or ""
+    return ""
+
+
+def _build_chat_pack(project: dict | None, message: str) -> str:
+    """Assemble the JSON conversation pack for one chat turn: the
+    TOQIX system persona, the last few completed exchanges of THIS
+    conversation (project, or the lobby when there is no project),
+    and the new user message."""
+    system = _CHAT_SYSTEM
+    if project and project.get("character"):
+        style = (_style_label(project["style"])
+                 if project.get("style") else "not chosen yet")
+        system += (
+            "\n\nCurrent series context: the user is building a "
+            f"series about {project['character']} (style: {style}). "
+            "Keep it in mind when they mention their series or "
+            "their character."
+        )
+    messages = [{"role": "system", "content": system}]
+    history = jobs.list_chat_jobs(
+        project["id"] if project else None,
+        limit=_CHAT_HISTORY_EXCHANGES * 2,
+    )
+    exchanges = []
+    for past in history:
+        user_text = _pack_user_text(past.get("prompt") or "")
+        if user_text and past.get("reply"):
+            # Stored replies are already directive-stripped (the
+            # server strips before storing), so history is clean.
+            exchanges.append((user_text, past["reply"]))
+    for user_text, assistant_text in exchanges[-_CHAT_HISTORY_EXCHANGES:]:
+        messages.append({"role": "user", "content": user_text})
+        messages.append({"role": "assistant", "content": assistant_text})
+    messages.append({"role": "user", "content": message})
+    return json.dumps({"messages": messages}, ensure_ascii=False)
+
+
+def _llm_chat_reply(project: dict | None, message: str) -> dict | None:
+    """Route one free-form message to the fleet's LLM.
+
+    Returns the pending-chat result when a chat-capable worker is
+    online — a kind="chat" job now carries the conversation — or
+    None when nobody can answer, so the caller falls back to the
+    built-in answer (never a dead end)."""
+    if not _chat_worker_online():
+        return None
+    try:
+        job = jobs.create_job(
+            prompt=_build_chat_pack(project, message),
+            kind="chat",
+            project_id=project["id"] if project else None,
+        )
+    except ValueError:
+        return None
+    return {
+        "reply": None,
+        "pending_chat_job": job["id"],
+        "project": _public(project) if project else None,
+        "created_jobs": [],
+        "state": project["state"] if project else "ask_character",
+    }
+
+
+# --- the hidden [[QUEUE ...]] directive in LLM replies ----------------------
+_QUEUE_DIRECTIVE = re.compile(
+    r"\[\[\s*QUEUE\s+(.*?)\]\]", re.IGNORECASE | re.DOTALL)
+_DIRECTIVE_ATTR = re.compile(
+    r"(\w+)\s*=\s*\"([^\"]*)\"|(\w+)\s*=\s*([^\s\]]+)")
+
+
+def parse_queue_directive(text: str) -> tuple[str, dict | None]:
+    """Split a finished LLM reply into (visible text, directive).
+
+    The directive — [[QUEUE kind=video prompt="..." style="..."
+    aspect="16:9"]] — is hidden by design: it is ALWAYS removed
+    from the visible text when present. Parsing is defensive: a
+    malformed or incomplete directive yields None (ignored
+    silently) and the job is simply never queued.
+    """
+    if not text:
+        return text, None
+    m = _QUEUE_DIRECTIVE.search(text)
+    if not m:
+        return text, None
+    attrs: dict[str, str] = {}
+    for attr in _DIRECTIVE_ATTR.finditer(m.group(1)):
+        key = (attr.group(1) or attr.group(3) or "").lower()
+        value = attr.group(2) if attr.group(2) is not None \
+            else (attr.group(4) or "")
+        if key:
+            attrs[key] = value.strip()
+    clean = (text[:m.start()] + text[m.end():]).strip()
+    kind = (attrs.get("kind") or "").lower()
+    prompt = (attrs.get("prompt") or "").strip()
+    if kind not in ("video", "image", "audio") or not prompt:
+        return clean, None
+    return clean, {
+        "kind": kind,
+        "prompt": prompt,
+        "style": attrs.get("style") or None,
+        "aspect": attrs.get("aspect") or None,
+    }
+
+
+def queue_from_directive(chat_job: dict, directive: dict) -> str | None:
+    """Turn a parsed [[QUEUE ...]] directive into a real creation
+    job through the normal jobs.create_job path (so it gets the
+    usual prompt-engine enhancement). When the chat belongs to a
+    series project, the job joins that project — same consistency
+    wiring as a queued scene: the project seed, and the character
+    anchor prepended for video/image. Returns the new job id, or
+    None when anything about it is unusable (never raises)."""
+    try:
+        kind = directive["kind"]
+        prompt = (directive.get("prompt") or "").strip()
+        if not prompt:
+            return None
+        project = None
+        if chat_job.get("project_id"):
+            project = _get_row(chat_job["project_id"])
+        style = directive.get("style") or None
+        if kind == "audio":
+            # Style carries the voice for audio jobs.
+            if not style:
+                style = (project or {}).get("voice") or DEFAULT_VOICE
+        else:
+            style = _resolve_style(style) if style else (
+                (project or {}).get("style") or "cinematic")
+        aspect = directive.get("aspect") or (
+            (project or {}).get("aspect") or config.DEFAULT_ASPECT)
+        if aspect not in config.ASPECT_SIZES:
+            aspect = config.DEFAULT_ASPECT
+        seed = (project or {}).get("seed") or config.DEFAULT_SEED
+        raw_prompt = prompt
+        if (project and kind != "audio" and project.get("character")
+                and not prompt.startswith(project["character"])):
+            raw_prompt = f"{project['character']}. {prompt}"
+        job = jobs.create_job(
+            prompt=raw_prompt,
+            style=style,
+            aspect=aspect,
+            kind=kind,
+            seed=seed,
+            project_id=project["id"] if project else None,
+        )
+        return job["id"]
+    except Exception:
+        return None
 
 
 # --- stories (story.py) -----------------------------------------------------

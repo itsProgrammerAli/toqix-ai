@@ -20,7 +20,7 @@ from .prompt_engine import enhance_prompt
 _LOCK = threading.Lock()
 
 STATUSES = ("queued", "exported", "generating", "running", "done", "failed")
-KINDS = ("video", "image", "audio")
+KINDS = ("video", "image", "audio", "chat")
 
 
 def _conn() -> sqlite3.Connection:
@@ -58,8 +58,23 @@ def init_db() -> None:
                 project_id      TEXT DEFAULT NULL,
                 claimed_by      TEXT DEFAULT NULL,
                 claimed_at      REAL DEFAULT NULL,
+                reply           TEXT DEFAULT NULL,
+                reply_done      INTEGER NOT NULL DEFAULT 0,
+                queued_jobs     TEXT NOT NULL DEFAULT '',
                 created_at      REAL NOT NULL,
                 updated_at      REAL NOT NULL
+            )
+            """
+        )
+        # Worker registry: every fleet worker pings in with the
+        # capabilities it can serve (e.g. ["video", "chat"]); a worker
+        # counts as online while its last ping is fresh (list_workers).
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS workers (
+                name      TEXT PRIMARY KEY,
+                caps      TEXT NOT NULL DEFAULT '[]',
+                last_seen REAL NOT NULL DEFAULT 0
             )
             """
         )
@@ -75,6 +90,9 @@ def init_db() -> None:
             ("project_id", "TEXT DEFAULT NULL"),
             ("claimed_by", "TEXT DEFAULT NULL"),
             ("claimed_at", "REAL DEFAULT NULL"),
+            ("reply", "TEXT DEFAULT NULL"),
+            ("reply_done", "INTEGER NOT NULL DEFAULT 0"),
+            ("queued_jobs", "TEXT NOT NULL DEFAULT ''"),
         ):
             if col not in existing:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {ddl}")
@@ -91,6 +109,15 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d["claimed_by"] = d.get("claimed_by") or None
     _claimed_at = d.get("claimed_at")
     d["claimed_at"] = float(_claimed_at) if _claimed_at is not None else None
+    # Chat jobs: the worker's reply text (None until one is posted),
+    # whether the final reply landed, and the real creation jobs a
+    # [[QUEUE ...]] directive in that reply produced.
+    d["reply"] = d.get("reply") or None
+    d["reply_done"] = int(d.get("reply_done") or 0)
+    try:
+        d["queued_jobs"] = json.loads(d.get("queued_jobs") or "[]")
+    except (TypeError, ValueError):
+        d["queued_jobs"] = []
     d["consent"] = bool(d.get("consent", 0))
     # API-surface aliases for the flywheel feedback contract:
     # train_consent mirrors consent; feedback renders thumbs as up/down.
@@ -154,10 +181,20 @@ def create_job(
     if kind not in KINDS:
         raise ValueError(f"unknown kind: {kind}")
 
-    enhanced = enhance_prompt(
-        prompt, style=style, aspect=aspect, duration=duration,
-        domain_id=domain or None, kind=kind,
-    )
+    if kind == "chat":
+        # A chat job's prompt is a ready-made JSON conversation pack
+        # for the fleet's LLM worker — it must reach the worker
+        # byte-for-byte, so the prompt engine never touches it.
+        enhanced = {
+            "original": prompt, "translated": "",
+            "enhanced_prompt": prompt, "negative_prompt": "",
+            "domain": "",
+        }
+    else:
+        enhanced = enhance_prompt(
+            prompt, style=style, aspect=aspect, duration=duration,
+            domain_id=domain or None, kind=kind,
+        )
     job_id = uuid.uuid4().hex[:12]
     now = time.time()
     with _LOCK, _conn() as conn:
@@ -326,6 +363,138 @@ def claim_job(job_id: str, worker: str) -> dict | None:
         finally:
             conn.close()
     return get_job(job_id)
+
+
+# ---------------------------------------------------------------------------
+# Chat jobs — replies posted back by the fleet's LLM worker.
+#
+# A kind="chat" job carries a JSON conversation pack in its prompt.
+# The worker that claims it streams its answer as reply snapshots
+# (partial posts) and closes the job with one final post. The server
+# post-processes the final text (see agent.parse_queue_directive)
+# BEFORE it is stored here, so a stored reply is always clean.
+# ---------------------------------------------------------------------------
+
+def set_reply(job_id: str, text: str, final: bool = False) -> dict | None:
+    """Store a worker's reply on a job. Returns the updated job, or
+    None for an unknown id.
+
+    ``text`` is the reply-so-far in full — workers send cumulative
+    snapshots, not deltas. A partial post only updates the text; a
+    final post also closes the job: status 'done', reply_done 1,
+    progress 100, and the worker's claim released.
+    """
+    now = time.time()
+    with _LOCK, _conn() as conn:
+        if final:
+            cur = conn.execute(
+                """
+                UPDATE jobs
+                   SET reply = ?, reply_done = 1, status = 'done',
+                       progress = 100, claimed_by = NULL,
+                       claimed_at = NULL, updated_at = ?
+                 WHERE id = ?
+                """,
+                (text, now, job_id),
+            )
+        else:
+            cur = conn.execute(
+                "UPDATE jobs SET reply = ?, updated_at = ? WHERE id = ?",
+                (text, now, job_id),
+            )
+        if cur.rowcount == 0:
+            return None
+    return get_job(job_id)
+
+
+def add_queued_jobs(job_id: str, new_ids: list[str]) -> dict | None:
+    """Record creation jobs spawned from a chat job's reply (its
+    [[QUEUE ...]] directive) on the chat job itself, so the chat
+    poll endpoint can report them as ``queued_jobs``."""
+    job = get_job(job_id)
+    if job is None:
+        return None
+    merged = list(job.get("queued_jobs") or [])
+    for nid in new_ids:
+        if nid and nid not in merged:
+            merged.append(nid)
+    with _LOCK, _conn() as conn:
+        conn.execute(
+            "UPDATE jobs SET queued_jobs = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(merged), time.time(), job_id),
+        )
+    return get_job(job_id)
+
+
+def list_chat_jobs(project_id: str | None, limit: int = 24) -> list[dict]:
+    """Completed chat jobs of one conversation, oldest first.
+
+    ``project_id`` None selects the lobby (chat jobs with no project).
+    Only finished turns (reply_done) count — they are the agent's
+    conversation history.
+    """
+    with _conn() as conn:
+        if project_id:
+            rows = conn.execute(
+                "SELECT * FROM jobs WHERE kind = 'chat' AND reply_done = 1 "
+                "AND project_id = ? ORDER BY created_at DESC LIMIT ?",
+                (project_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM jobs WHERE kind = 'chat' AND reply_done = 1 "
+                "AND project_id IS NULL "
+                "ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+    return [_row_to_dict(r) for r in reversed(rows)]
+
+
+# ---------------------------------------------------------------------------
+# Worker registry — who is out there and what can they serve?
+# ---------------------------------------------------------------------------
+
+WORKER_ONLINE_SECONDS = 90  # a ping this old (or newer) = worker online
+
+
+def ping_worker(name: str, caps_list) -> dict:
+    """Upsert a worker's heartbeat: its name, the capability list it
+    serves (e.g. ["video", "image", "chat"]) and the current time."""
+    caps = [str(c) for c in (caps_list or [])]
+    now = time.time()
+    with _LOCK, _conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO workers (name, caps, last_seen) VALUES (?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET caps = excluded.caps,
+                                            last_seen = excluded.last_seen
+            """,
+            (name, json.dumps(caps), now),
+        )
+    return {"name": name, "caps": caps, "last_seen": now, "online": True}
+
+
+def list_workers() -> list[dict]:
+    """All known workers with their caps and a computed ``online``
+    flag (last ping within WORKER_ONLINE_SECONDS)."""
+    now = time.time()
+    with _conn() as conn:
+        rows = conn.execute("SELECT * FROM workers ORDER BY name").fetchall()
+    workers = []
+    for row in rows:
+        d = dict(row)
+        try:
+            caps = json.loads(d.get("caps") or "[]")
+        except (TypeError, ValueError):
+            caps = []
+        last_seen = float(d.get("last_seen") or 0)
+        workers.append({
+            "name": d["name"],
+            "caps": caps,
+            "last_seen": last_seen,
+            "online": (now - last_seen) <= WORKER_ONLINE_SECONDS,
+        })
+    return workers
 
 
 init_db()

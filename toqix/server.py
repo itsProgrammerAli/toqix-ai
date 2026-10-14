@@ -44,6 +44,16 @@ class ClaimIn(BaseModel):
     worker: str = Field(..., min_length=1, max_length=120)  # e.g. "colab-a3f9"
 
 
+class ReplyIn(BaseModel):
+    text: str = Field(..., max_length=20000)  # the reply-so-far, in full
+    final: bool = False        # True closes the (chat) job as done
+
+
+class WorkerPingIn(BaseModel):
+    worker: str = Field(..., min_length=1, max_length=120)
+    caps: list[str] = []       # capabilities served, e.g. ["video", "chat"]
+
+
 class FeedbackIn(BaseModel):
     rating: int | None = None      # 1-5 (0 clears)
     thumbs: str | None = None      # "up" | "down" | "none"
@@ -244,6 +254,45 @@ def job_progress(job_id: str, body: ProgressIn):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.post("/api/jobs/{job_id}/reply")
+def job_reply(job_id: str, body: ReplyIn):
+    """A chat worker posts its reply for a job: partial snapshots
+    while it generates, then one final post that closes the job.
+
+    The final text is post-processed BEFORE it is stored: a hidden
+    [[QUEUE ...]] directive (the LLM asking the studio to create a
+    video/image/audio) is stripped from the visible reply, turned
+    into a real creation job through the normal path, and recorded
+    on the chat job as queued_jobs."""
+    job = jobs.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job not found")
+    if not body.final:
+        return jobs.set_reply(job_id, body.text, final=False)
+    clean, directive = agent.parse_queue_directive(body.text)
+    updated = jobs.set_reply(job_id, clean, final=True)
+    if directive:
+        queued_id = agent.queue_from_directive(updated, directive)
+        if queued_id:
+            updated = jobs.add_queued_jobs(job_id, [queued_id]) or updated
+    return updated
+
+
+@app.post("/api/workers/ping")
+def worker_ping(body: WorkerPingIn):
+    """Fleet workers check in here (name + the capabilities they
+    serve); a worker counts as online for 90 s after its last ping."""
+    jobs.ping_worker(body.worker, body.caps)
+    return {"ok": True}
+
+
+@app.get("/api/workers")
+def get_workers():
+    """The worker registry: name, caps, last_seen and computed
+    online flag for every worker that ever pinged."""
+    return {"workers": jobs.list_workers()}
+
+
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str):
     job = jobs.get_job(job_id)
@@ -337,11 +386,32 @@ async def import_result(job_id: str, file: UploadFile = File(...)):
 @app.post("/api/agent/chat")
 def agent_chat(body: AgentChatIn):
     """One turn with the TOQIX Agent: chat + consistent-series control.
-    The agent (toqix/agent.py) is a local deterministic state machine —
-    it collects a series bible (character / style / kind / voice), then
-    queues scene jobs that all share the project's character anchor,
-    style and FIXED seed via jobs.create_job(project_id=..., seed=...)."""
+    The agent (toqix/agent.py) is deterministic-first — it collects a
+    series bible (character / style / kind / voice), then queues scene
+    jobs that all share the project's character anchor, style and
+    FIXED seed via jobs.create_job(project_id=..., seed=...). A
+    free-form message it cannot answer itself may instead return
+    {"reply": null, "pending_chat_job": <id>} — the conversation was
+    handed to the fleet's LLM worker; poll the job below."""
     return agent.chat(body.project_id, body.message)
+
+
+@app.get("/api/agent/chat/{job_id}")
+def agent_chat_poll(job_id: str):
+    """Poll one chat job for the web layer: its status and, once a
+    worker posts it, the reply (final replies are stored cleaned of
+    any [[QUEUE ...]] directive; queued_jobs lists the creation
+    jobs such a directive produced)."""
+    job = jobs.get_job(job_id)
+    if not job or job.get("kind") != "chat":
+        raise HTTPException(status_code=404, detail="chat job not found")
+    return {
+        "job_id": job["id"],
+        "status": job["status"],
+        "reply": job.get("reply") or None,
+        "reply_done": job.get("reply_done", 0),
+        "queued_jobs": job.get("queued_jobs", []),
+    }
 
 
 @app.get("/api/projects")

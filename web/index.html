@@ -7,103 +7,46 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header class="hero">
+<header class="topbar">
   <div class="logo">TOQIX<span>AI</span></div>
-  <p class="tagline">Socho. Bolo. Ban Gaya.</p>
-  <p class="sub">Your own any-prompt video AI. Type an idea — in English or Roman Urdu —
-     TOQIX writes the director's prompt, and your GPU renders the film.
-     No external APIs. Your model, your machine, your name.</p>
+  <div class="tagline">Socho. Bolo. Ban Gaya.</div>
 </header>
 
 <main>
-  <section class="panel" id="create-panel">
-    <h2>Create a video job</h2>
-    <label class="field-label" for="prompt">Your idea</label>
+  <section class="composer">
     <textarea id="prompt" rows="3"
-      placeholder="e.g. ek billi barish mein bhaag rahi hai — or: a panda astronaut planting a flag on the moon"></textarea>
+      placeholder="Apna idea likho… e.g. ek billi barish mein bhaag rahi hai — or: a panda astronaut planting a flag on the moon"></textarea>
 
-    <div class="row">
-      <div class="field">
-        <label class="field-label" for="domain">Domain (all-in-one curriculum)</label>
-        <select id="domain"><option value="">Auto-detect</option></select>
-      </div>
-      <div class="field">
-        <label class="field-label" for="style">Style</label>
-        <select id="style"></select>
-      </div>
-      <div class="field">
-        <label class="field-label">Aspect</label>
-        <div class="chips" id="aspects"></div>
-      </div>
-      <div class="field">
-        <label class="field-label" for="duration">Duration (sec)</label>
+    <div class="seg" id="kind-seg">
+      <button type="button" data-kind="video" class="active">Video</button>
+      <button type="button" data-kind="image">Image</button>
+      <button type="button" data-kind="audio">Audio</button>
+    </div>
+
+    <div class="chips" id="styles"></div>
+
+    <div class="opt-line" id="media-opts">
+      <div class="chips" id="aspects"></div>
+      <label class="dur" id="duration-wrap">Duration
         <select id="duration">
-          <option value="2">2</option>
-          <option value="3" selected>3</option>
-          <option value="4">4</option>
-          <option value="5">5</option>
+          <option value="2">2s</option>
+          <option value="3" selected>3s</option>
+          <option value="4">4s</option>
+          <option value="5">5s</option>
         </select>
-      </div>
-      <div class="field">
-        <label class="field-label" for="model">Model</label>
-        <select id="model"></select>
-      </div>
-      <div class="field">
-        <label class="field-label" for="seed">Seed</label>
-        <input id="seed" type="number" value="42">
-      </div>
+      </label>
     </div>
 
-    <div id="domain-examples" class="examples hidden"></div>
-
-    <label class="consent-line">
-      <input type="checkbox" id="consent">
-      Allow my generations &amp; uploads to be used for TOQIX training
-      <span class="consent-note">(flywheel consent — off by default; only rated ★4+ videos are curated automatically)</span>
-    </label>
-
-    <button id="create-btn" class="primary">🎬 Create Job</button>
-    <p id="create-msg" class="msg"></p>
-
-    <div id="enhanced-box" class="enhanced hidden">
-      <h3>TOQIX director's prompt</h3>
-      <p id="enhanced-text"></p>
-      <h4>Negative prompt</h4>
-      <p id="negative-text" class="neg"></p>
-      <p class="hint">Job package exported. Sync the <code>data/exports</code> folder to
-        <code>Google Drive → TOQIX/jobs</code> and run notebook
-        <code>03_toqix_runner.ipynb</code> on Colab — the finished video lands in
-        <code>TOQIX/outputs</code> on Drive; import it below when it's back.</p>
-    </div>
+    <button id="generate" class="primary">Generate</button>
+    <p id="msg" class="msg"></p>
   </section>
 
-  <section class="panel">
-    <h2>Job queue</h2>
-    <div id="jobs" class="jobs"><p class="empty">No jobs yet. Create your first one above.</p></div>
-  </section>
-
-  <section class="panel">
-    <h2>Gallery</h2>
-    <div id="gallery" class="gallery"><p class="empty">Finished videos will appear here.</p></div>
-  </section>
-
-  <section class="panel">
-    <h2>Training flywheel</h2>
-    <p class="hint">TOQIX improves in rounds: your ★4+ generations with training consent
-      (plus your uploads in <code>data/uploads</code> with captions + a
-      <code>consent.json</code>) are curated into a versioned dataset. Notebook
-      <code>04_toqix_flywheel_retrain.ipynb</code> then trains the next
-      <code>toqix_lora_v{N}</code> checkpoint on your GPU.</p>
-    <button id="dataset-btn" class="small">⚙ Build training dataset (next version)</button>
-    <button id="batch-btn" class="small">🌍 Create curriculum batch (one job per domain)</button>
-    <p id="dataset-msg" class="msg"></p>
+  <section class="feed-wrap">
+    <div id="feed" class="feed"></div>
   </section>
 </main>
 
-<footer>
-  <p>TOQIX AI · Built on open weights (Wan 2.1) + TOQIX's own prompt engine &amp; fine-tunes ·
-     Zero external APIs · Zero budget</p>
-</footer>
+<footer>TOQIX AI · Socho. Bolo. Ban Gaya.</footer>
 
 <script src="/static/app.js"></script>
 </body>

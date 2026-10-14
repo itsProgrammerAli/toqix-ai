@@ -2,7 +2,11 @@
 (function () {
   "use strict";
 
-  var state = { kind: "video", style: "cinematic", voice: "Ava", aspect: "16:9" };
+  var state = {
+    kind: "video", style: "cinematic", voice: "Ava", aspect: "16:9",
+    view: "studio", activeProject: null, projects: [],
+    agentBusy: false, agentGreeted: false
+  };
   var lastSig = null;
   var seen = {};
   var styleItems = [];
@@ -164,6 +168,205 @@
   }
   $("generate").addEventListener("click", generate);
 
+  /* ---------------- Studio | Agent view switch ---------------- */
+
+  function moveViewThumb() {
+    var thumb = $("view-thumb");
+    if (!thumb) return;
+    var active = null;
+    Array.prototype.forEach.call($("view-seg").children, function (b) {
+      if (b.tagName === "BUTTON" && b.getAttribute("data-view") === state.view) active = b;
+    });
+    if (!active) return;
+    thumb.style.width = active.offsetWidth + "px";
+    thumb.style.transform = "translateX(" + active.offsetLeft + "px)";
+  }
+
+  function applyView() {
+    var agent = state.view === "agent";
+    Array.prototype.forEach.call($("view-seg").children, function (b) {
+      if (b.tagName === "BUTTON") {
+        b.classList.toggle("active", b.getAttribute("data-view") === state.view);
+      }
+    });
+    $("composer").classList.toggle("hidden", agent);
+    $("agent-panel").classList.toggle("hidden", !agent);
+    document.querySelector("main").classList.toggle("agent-mode", agent);
+    requestAnimationFrame(moveViewThumb);
+    if (agent) enterAgent();
+  }
+
+  Array.prototype.forEach.call($("view-seg").children, function (b) {
+    if (b.tagName !== "BUTTON") return;
+    b.addEventListener("click", function () {
+      state.view = b.getAttribute("data-view");
+      applyView();
+    });
+  });
+  window.addEventListener("resize", moveViewThumb);
+
+  /* ---------------- TOQIX Agent ---------------- */
+
+  var AGENT_ERR = "Agent is warming up — try again in a moment";
+
+  function enterAgent() {
+    loadProjects();
+    if (!state.activeProject && !state.agentGreeted) {
+      state.agentGreeted = true;
+      agentRequest("hi", true);
+    }
+  }
+
+  function loadProjects() {
+    fetch("/api/projects").then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (list) {
+        if (Array.isArray(list)) state.projects = list;
+        renderSeriesChips();
+        renderBible();
+        lastSig = null; // let the feed re-render with series tags
+      }).catch(function () { /* agent endpoints may not be live yet */ });
+  }
+
+  function projectById(id) {
+    for (var i = 0; i < state.projects.length; i++) {
+      if (state.projects[i].id === id) return state.projects[i];
+    }
+    return null;
+  }
+
+  function setActiveProject(p) {
+    state.activeProject = p || null;
+    renderSeriesChips();
+    renderBible();
+  }
+
+  function upsertProject(p) {
+    var found = false;
+    for (var i = 0; i < state.projects.length; i++) {
+      if (state.projects[i].id === p.id) { state.projects[i] = p; found = true; break; }
+    }
+    if (!found) state.projects.push(p);
+    setActiveProject(p);
+  }
+
+  function renderSeriesChips() {
+    var strip = $("series-strip");
+    if (!strip) return;
+    strip.innerHTML = "";
+    if (!state.projects.length) {
+      var s = document.createElement("span");
+      s.className = "muted-note";
+      s.textContent = "No series yet";
+      strip.appendChild(s);
+      return;
+    }
+    state.projects.forEach(function (p) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip" +
+        (state.activeProject && state.activeProject.id === p.id ? " active" : "");
+      b.textContent = p.name || "Series";
+      b.addEventListener("click", function () { setActiveProject(p); });
+      strip.appendChild(b);
+    });
+  }
+
+  function renderBible() {
+    var box = $("bible");
+    if (!box) return;
+    var p = state.activeProject;
+    if (!p) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+    function row(k, v) {
+      return '<div class="bible-row"><span>' + esc(k) + "</span><p>" + esc(v) + "</p></div>";
+    }
+    var html = '<div class="bible-name">' + esc(p.name || "Series") + "</div>";
+    if (p.character) html += row("Character", p.character);
+    if (p.style) html += row("Style", p.style);
+    if (p.kind_default) html += row("Kind", KIND_LABEL[p.kind_default] || p.kind_default);
+    if (p.aspect) html += row("Ratio", p.aspect);
+    if (p.voice) html += row("Voice", p.voice);
+    if (p.seed !== null && p.seed !== undefined && p.seed !== "") html += row("Seed", p.seed);
+    box.innerHTML = html;
+    box.classList.remove("hidden");
+  }
+
+  function addBubble(text, cls) {
+    var chat = $("chat");
+    var d = document.createElement("div");
+    d.className = "bubble " + cls;
+    d.textContent = text;
+    chat.appendChild(d);
+    chat.scrollTop = chat.scrollHeight;
+    return d;
+  }
+
+  function addTyping() {
+    var chat = $("chat");
+    var d = document.createElement("div");
+    d.className = "bubble agent typing";
+    d.innerHTML = "<i></i><i></i><i></i>";
+    chat.appendChild(d);
+    chat.scrollTop = chat.scrollHeight;
+    return d;
+  }
+
+  function agentRequest(text, isGreeting) {
+    if (state.agentBusy) return;
+    state.agentBusy = true;
+    if (!isGreeting) addBubble(text, "user");
+    var typing = addTyping();
+    fetch("/api/agent/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        project_id: state.activeProject ? state.activeProject.id : null,
+        message: text
+      })
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, j: j }; })
+        .catch(function () { return { ok: false, j: null }; });
+    }).then(function (res) {
+      typing.remove();
+      state.agentBusy = false;
+      if (!res.ok || !res.j) { addBubble(AGENT_ERR, "agent err"); return; }
+      var d = res.j;
+      if (d.project) upsertProject(d.project);
+      if (d.reply) addBubble(d.reply, "agent");
+      if (d.created_jobs && d.created_jobs.length) { lastSig = null; refresh(); }
+    }).catch(function () {
+      typing.remove();
+      state.agentBusy = false;
+      addBubble(AGENT_ERR, "agent err");
+    });
+  }
+
+  function sendFromInput() {
+    var input = $("agent-input");
+    var v = input.value.trim();
+    if (!v || state.agentBusy) return;
+    input.value = "";
+    agentRequest(v, false);
+  }
+  $("agent-send").addEventListener("click", sendFromInput);
+  $("agent-input").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); sendFromInput(); }
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-quick]"), function (b) {
+    b.addEventListener("click", function () {
+      if (state.agentBusy) return;
+      agentRequest(b.getAttribute("data-quick"), false);
+    });
+  });
+
+  $("new-series").addEventListener("click", function () {
+    if (state.agentBusy) return;
+    setActiveProject(null);
+    $("chat").innerHTML = "";
+    state.agentGreeted = true;
+    agentRequest("hi", true);
+  });
+
   /* ---------------- creations feed ---------------- */
 
   function displayStatus(j) {
@@ -248,6 +451,14 @@
     done: "Done", failed: "Failed"
   };
 
+  function seriesTag(j) {
+    if (!j.project_id) return "";
+    var p = projectById(j.project_id);
+    var name = p ? (p.name || "") : "";
+    return '<div><span class="series-tag">Agent series' +
+      (name ? " · " + esc(name) : "") + "</span></div>";
+  }
+
   function card(j) {
     var st = displayStatus(j);
     var div = document.createElement("div");
@@ -258,6 +469,7 @@
       mediaHTML(j, st) +
       '<div class="body">' +
         '<div class="prompt-line">' + esc(j.prompt) + "</div>" +
+        seriesTag(j) +
         '<div class="meta-line"><span>' + esc(meta.join(" · ")) + "</span>" +
           '<span class="status ' + st + '">' + STATUS_LABEL[st] + "</span></div>" +
         (st !== "failed"
@@ -273,7 +485,7 @@
 
   function renderFeed(jobs) {
     var sig = JSON.stringify(jobs.map(function (j) {
-      return [j.id, j.status, j.progress, j.output_path, j.rating, j.thumbs];
+      return [j.id, j.status, j.progress, j.output_path, j.rating, j.thumbs, j.project_id];
     }));
     if (sig === lastSig) return;
     lastSig = sig;
@@ -303,7 +515,9 @@
 
   applyKind();
   loadOptions();
+  loadProjects();
   refresh();
   setInterval(refresh, 4000);
   requestAnimationFrame(moveThumb);
+  requestAnimationFrame(moveViewThumb);
 })();

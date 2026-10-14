@@ -11,9 +11,34 @@
 
 <header class="topbar glass">
   <div class="logo">TOQIX<span>AI</span></div>
+  <div class="seg view-seg" id="view-seg">
+    <span class="seg-thumb" id="view-thumb"></span>
+    <button type="button" data-view="studio" class="active">Studio</button>
+    <button type="button" data-view="agent">Agent</button>
+  </div>
 </header>
 
 <main>
+  <section id="agent-panel" class="agent glass hidden">
+    <div class="agent-head">
+      <div class="agent-title">TOQIX Agent</div>
+      <button type="button" id="new-series" class="mini-btn">New series</button>
+    </div>
+    <div class="chips scroll" id="series-strip"></div>
+    <div id="bible" class="bible hidden"></div>
+    <div id="chat" class="chat"></div>
+    <div class="agent-input-row">
+      <input id="agent-input" type="text" placeholder="Talk to the agent…" autocomplete="off">
+      <button id="agent-send" class="primary" type="button">Send</button>
+    </div>
+    <div class="chips quick-chips">
+      <button type="button" class="chip" data-quick="Start a series">Start a series</button>
+      <button type="button" class="chip" data-quick="Next part">Next part</button>
+      <button type="button" class="chip" data-quick="Status">Status</button>
+      <button type="button" class="chip" data-quick="Parts">Parts</button>
+    </div>
+  </section>
+
   <section class="feed-wrap">
     <h2 class="feed-title">Creations</h2>
     <div id="feed" class="feed"></div>
@@ -21,7 +46,7 @@
   <footer>TOQIX AI</footer>
 </main>
 
-<section class="composer glass">
+<section id="composer" class="composer glass">
   <textarea id="prompt" rows="1"
     placeholder="Describe anything… a panda astronaut planting a flag on the moon"></textarea>
 

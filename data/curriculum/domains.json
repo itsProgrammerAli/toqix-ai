@@ -1,0 +1,535 @@
+{
+  "curriculum": "TOQIX AI all-in-one domain curriculum v1",
+  "domains": [
+    {
+      "camera_default": "slow aerial reveal over the landscape",
+      "caption_templates": [
+        "A {subject} in a vast natural landscape, {camera}, {lighting}, atmospheric depth and rich detail",
+        "A serene view of {setting} with {subject} moving through it, {camera}, natural light"
+      ],
+      "description": "Mountains, forests, valleys, waterfalls, deserts, countryside.",
+      "example_prompts_en": [
+        "A misty mountain valley at sunrise with a river winding through pine forests",
+        "A waterfall pouring into a green jungle pool after rain"
+      ],
+      "example_prompts_ur": [
+        "subah ke waqt pahadon ki wadi mein kohra aur behta darya",
+        "jangal mein barish ke baad girta hua aabshar"
+      ],
+      "extra_tokens": "vast natural scenery, rich environmental detail, atmospheric depth",
+      "id": "nature_landscapes",
+      "keywords": [
+        "mountain",
+        "forest",
+        "valley",
+        "waterfall",
+        "landscape",
+        "meadow",
+        "pahad",
+        "pahar",
+        "jangal",
+        "kheet",
+        "bagh",
+        "ped",
+        "darakht"
+      ],
+      "label": "Nature & Landscapes",
+      "lighting_default": "natural outdoor light",
+      "style": "nature_doc"
+    },
+    {
+      "camera_default": "slow cinematic pan across the water",
+      "caption_templates": [
+        "A {subject} by the ocean under {weather} skies, {camera}, {lighting}",
+        "{weather} over {setting}, with {subject} in the foreground, {camera}"
+      ],
+      "description": "Seas, beaches, rain, storms, snow, seasons and skies.",
+      "example_prompts_en": [
+        "Ocean waves crashing on a rocky beach under a stormy sky",
+        "Gentle snowfall over a quiet frozen lake at dusk"
+      ],
+      "example_prompts_ur": [
+        "samandar ki lehren kinare se takra rahi hain toofani aasman ke neeche",
+        "shaam ko jheel par dheere dheere girti barf"
+      ],
+      "extra_tokens": "dynamic sky and water, realistic weather atmosphere",
+      "id": "ocean_weather",
+      "keywords": [
+        "ocean",
+        "sea",
+        "beach",
+        "wave",
+        "rain",
+        "storm",
+        "snow",
+        "cloud",
+        "samandar",
+        "barish",
+        "barf",
+        "badal",
+        "aasman",
+        "hawa"
+      ],
+      "label": "Ocean & Weather",
+      "lighting_default": "natural outdoor light",
+      "style": "nature_doc"
+    },
+    {
+      "camera_default": "slow crane shot rising over the street",
+      "caption_templates": [
+        "A {subject} moving through a busy city street, {camera}, {lighting}, urban detail",
+        "Street life in {setting} with {subject}, {camera}, cinematic city atmosphere"
+      ],
+      "description": "Urban life, streets, traffic, markets, skylines, old towns.",
+      "example_prompts_en": [
+        "A busy city street at rush hour with buses, rickshaws and crowds crossing",
+        "An old town bazaar lane glowing with shop lights in the evening"
+      ],
+      "example_prompts_ur": [
+        "sheher ki mashhoor sarak par shaam ko traffic aur logon ka hujoom",
+        "purane bazaar ki gali mein roshan dukanein"
+      ],
+      "extra_tokens": "busy urban atmosphere, architectural detail, street life",
+      "id": "cities_streets",
+      "keywords": [
+        "city",
+        "street",
+        "traffic",
+        "market",
+        "bazaar",
+        "skyline",
+        "downtown",
+        "sheher",
+        "bazaar",
+        "sarak"
+      ],
+      "label": "Cities & Streets",
+      "lighting_default": "mixed city light",
+      "style": "cinematic"
+    },
+    {
+      "camera_default": "smooth steadicam shot following alongside",
+      "caption_templates": [
+        "A {subject} {action} in {setting}, {camera}, {lighting}, authentic daily-life feel",
+        "Candid moment of {subject} {action}, {camera}, natural expressions"
+      ],
+      "description": "Families, work, school, cooking, friendships, everyday moments.",
+      "example_prompts_en": [
+        "A grandmother teaching her grandchild to cook in a sunny kitchen",
+        "School children laughing and running out of school at the end of the day"
+      ],
+      "example_prompts_ur": [
+        "ek ladka apne doston ke saath ghar ke bahar khel raha hai",
+        "ek ladki subah nashta banate hue muskura rahi hai"
+      ],
+      "extra_tokens": "authentic everyday emotion, natural human expressions and gestures",
+      "id": "people_daily_life",
+      "keywords": [
+        "family",
+        "mother",
+        "father",
+        "child",
+        "children",
+        "friends",
+        "cooking",
+        "school",
+        "office",
+        "ladka",
+        "ladki",
+        "bacha",
+        "dost",
+        "ghar"
+      ],
+      "label": "People & Daily Life",
+      "lighting_default": "warm natural indoor light",
+      "style": "photorealistic"
+    },
+    {
+      "camera_default": "telephoto tracking shot following the animal",
+      "caption_templates": [
+        "A {subject} {action} in {setting}, {camera}, {lighting}, lifelike animal motion",
+        "Close view of a {subject} {action}, {camera}, detailed fur and natural behaviour"
+      ],
+      "description": "Pets, wildlife, birds, farm and sea animals in motion.",
+      "example_prompts_en": [
+        "A cheetah sprinting across golden grassland chasing the wind",
+        "A kitten playing with a ball of yarn on a wooden floor"
+      ],
+      "example_prompts_ur": [
+        "ek billi barish mein bhaag rahi hai",
+        "ghora kheet mein tez daud raha hai"
+      ],
+      "extra_tokens": "true-to-life animal behaviour and anatomy, detailed fur and feathers",
+      "id": "animals",
+      "keywords": [
+        "cat",
+        "dog",
+        "horse",
+        "lion",
+        "elephant",
+        "bird",
+        "monkey",
+        "bear",
+        "fish",
+        "butterfly",
+        "billi",
+        "kutta",
+        "ghora",
+        "sher",
+        "hathi",
+        "bandar",
+        "chiriya",
+        "titli",
+        "machhli"
+      ],
+      "label": "Animals",
+      "lighting_default": "natural outdoor light",
+      "style": "nature_doc"
+    },
+    {
+      "camera_default": "slow push-in close-up shot",
+      "caption_templates": [
+        "A close-up of {subject} being prepared, {camera}, {lighting}, appetizing detail and steam",
+        "{subject} served fresh in {setting}, {camera}, rich food textures"
+      ],
+      "description": "Dishes, street food, cooking processes, steam and sizzle.",
+      "example_prompts_en": [
+        "Steam rising from a fresh plate of biryani as a spoon lifts the first bite",
+        "A chef tossing vegetables in a flaming wok at a street food stall"
+      ],
+      "example_prompts_ur": [
+        "garam garam chai ki piyali se uthta dhuwan",
+        "tawe par banti hui garma garam roti"
+      ],
+      "extra_tokens": "appetizing detail, steam and texture, shallow depth of field",
+      "id": "food",
+      "keywords": [
+        "food",
+        "cooking",
+        "kitchen",
+        "chef",
+        "biryani",
+        "pizza",
+        "burger",
+        "tea",
+        "chai",
+        "restaurant",
+        "bbq",
+        "kha",
+        "khana"
+      ],
+      "label": "Food & Cooking",
+      "lighting_default": "warm appetizing light",
+      "style": "cinematic"
+    },
+    {
+      "camera_default": "dynamic tracking shot following the action",
+      "caption_templates": [
+        "A {subject} {action} during a match, {camera}, {lighting}, high-energy sports motion",
+        "Slow-motion view of {subject} {action}, {camera}, athletic detail"
+      ],
+      "description": "Cricket, football, racing, martial arts, athletics, extreme sports.",
+      "example_prompts_en": [
+        "A batsman hitting a powerful six as the stadium crowd erupts",
+        "A swimmer diving into a blue pool in slow motion"
+      ],
+      "example_prompts_ur": [
+        "ladka cricket khelte hue zabardast shot marta hai",
+        "ek tairne wala neele pool mein chhalang lagata hai"
+      ],
+      "extra_tokens": "high-energy athletic motion, realistic physics and effort",
+      "id": "sports",
+      "keywords": [
+        "cricket",
+        "football",
+        "soccer",
+        "race",
+        "running",
+        "boxing",
+        "swimming",
+        "cycling",
+        "goal",
+        "match",
+        "khel",
+        "daud",
+        "tair"
+      ],
+      "label": "Sports & Action",
+      "lighting_default": "bright stadium light",
+      "style": "photorealistic"
+    },
+    {
+      "camera_default": "low tracking shot moving with the vehicle",
+      "caption_templates": [
+        "A {subject} travelling through {setting}, {camera}, {lighting}, realistic motion and reflections",
+        "{subject} in motion on {setting}, {camera}, sense of speed"
+      ],
+      "description": "Cars, bikes, trains, planes, boats and journeys.",
+      "example_prompts_en": [
+        "A red sports car speeding along a coastal highway at sunset",
+        "A passenger train crossing a high bridge over a green valley"
+      ],
+      "example_prompts_ur": [
+        "ek gaari pahadi sarak par tez ja rahi hai",
+        "kashti samandar mein safar kar rahi hai"
+      ],
+      "extra_tokens": "realistic vehicle motion and reflections, sense of speed",
+      "id": "vehicles",
+      "keywords": [
+        "car",
+        "bike",
+        "motorcycle",
+        "truck",
+        "bus",
+        "train",
+        "airplane",
+        "boat",
+        "ship",
+        "gaari",
+        "gadi",
+        "jahaz",
+        "kashti",
+        "cycle"
+      ],
+      "label": "Vehicles & Transport",
+      "lighting_default": "natural outdoor light",
+      "style": "cinematic"
+    },
+    {
+      "camera_default": "slow majestic dolly shot through the scene",
+      "caption_templates": [
+        "A {subject} in space near {setting}, {camera}, {lighting}, epic sci-fi scale",
+        "{subject} exploring {setting}, {camera}, detailed futuristic technology"
+      ],
+      "description": "Astronauts, rockets, planets, robots, futuristic technology.",
+      "example_prompts_en": [
+        "An astronaut planting a glowing flag on the moon with Earth in the sky",
+        "A rocket launching at dawn leaving a trail of fire and smoke"
+      ],
+      "example_prompts_ur": [
+        "chand par khada khala baz zameen ki taraf dekh raha hai",
+        "rocket aasman ki taraf udta hua aag ka nishan chor raha hai"
+      ],
+      "extra_tokens": "epic scale, detailed spacecraft and suits, volumetric light",
+      "id": "space_scifi",
+      "keywords": [
+        "space",
+        "astronaut",
+        "rocket",
+        "moon",
+        "planet",
+        "mars",
+        "robot",
+        "alien",
+        "spaceship",
+        "stars",
+        "chand",
+        "taare",
+        "jahaz"
+      ],
+      "label": "Space & Sci-Fi",
+      "lighting_default": "dramatic space lighting with strong contrast",
+      "style": "cinematic"
+    },
+    {
+      "camera_default": "sweeping crane shot revealing the magical scene",
+      "caption_templates": [
+        "A {subject} in a magical {setting}, {camera}, {lighting}, mythical wonder",
+        "{subject} casting magic in {setting}, {camera}, enchanted atmosphere"
+      ],
+      "description": "Dragons, castles, magic, mythical worlds and creatures.",
+      "example_prompts_en": [
+        "A dragon soaring over a medieval castle at twilight",
+        "A young wizard opening a glowing spell book in a dark forest"
+      ],
+      "example_prompts_ur": [
+        "ek bara dragon purane qile ke upar ud raha hai",
+        "jangal mein jadoo ki roshni phailti hui"
+      ],
+      "extra_tokens": "magical atmosphere, mythical detail, wonder and scale",
+      "id": "fantasy",
+      "keywords": [
+        "dragon",
+        "magic",
+        "castle",
+        "wizard",
+        "fairy",
+        "unicorn",
+        "kingdom",
+        "jadoo",
+        "parinda",
+        "pari"
+      ],
+      "label": "Fantasy & Magic",
+      "lighting_default": "enchanted glowing light",
+      "style": "cinematic"
+    },
+    {
+      "camera_default": "expressive stylized camera movement",
+      "caption_templates": [
+        "An anime-style {subject} {action} in {setting}, {camera}, {lighting}, cel shaded",
+        "A cartoon {subject} {action}, {camera}, expressive stylized animation"
+      ],
+      "description": "Anime scenes, cartoon characters, stylized 2D/3D animation.",
+      "example_prompts_en": [
+        "An anime girl with a red scarf standing on a hill as wind moves the grass",
+        "A cartoon panda and a tiny robot building a toy rocket together"
+      ],
+      "example_prompts_ur": [
+        "anime ladki pahadi par khadi hawa mein udta dupatta",
+        "cartoon billi aur chota robot dost khel rahe hain"
+      ],
+      "extra_tokens": "cel shading, expressive characters, fluid sakuga animation",
+      "id": "anime_cartoon",
+      "keywords": [
+        "anime",
+        "cartoon",
+        "manga",
+        "ghibli",
+        "animated character",
+        "2d animation"
+      ],
+      "label": "Anime & Cartoon Style",
+      "lighting_default": "bright stylized anime lighting",
+      "style": "anime"
+    },
+    {
+      "camera_default": "slow crane shot rising along the structure",
+      "caption_templates": [
+        "A {subject} in {setting} shown in full grandeur, {camera}, {lighting}, architectural detail",
+        "Slow reveal of {subject}, {camera}, precise geometry and scale"
+      ],
+      "description": "Buildings, monuments, interiors, historical and modern design.",
+      "example_prompts_en": [
+        "A white marble mosque glowing in morning light with birds circling the dome",
+        "A modern glass skyscraper reflecting a dramatic sunset sky"
+      ],
+      "example_prompts_ur": [
+        "ek khubsurat masjid subah ki roshni mein chamak rahi hai",
+        "bara pul darya ke upar shaam ko roshan hai"
+      ],
+      "extra_tokens": "precise architectural detail, grand scale, clean geometry",
+      "id": "architecture",
+      "keywords": [
+        "building",
+        "mosque",
+        "temple",
+        "tower",
+        "house",
+        "bridge",
+        "monument",
+        "interior",
+        "makan",
+        "ghar",
+        "pul",
+        "masjid"
+      ],
+      "label": "Architecture & Places",
+      "lighting_default": "natural architectural light",
+      "style": "photorealistic"
+    },
+    {
+      "camera_default": "orbiting camera shot circling the celebration",
+      "caption_templates": [
+        "A {subject} celebrating {event} in {setting}, {camera}, {lighting}, festive cultural detail",
+        "Joyful scenes of {event} with {subject}, {camera}, colorful celebration"
+      ],
+      "description": "Eid, weddings, Diwali, parades, traditions, celebrations.",
+      "example_prompts_en": [
+        "Families celebrating Eid in a courtyard decorated with lights and sweets",
+        "A colorful wedding procession with dancers and drummers in the street"
+      ],
+      "example_prompts_ur": [
+        "eid ke din ghar mein sajawat aur bachon ki khushi",
+        "shaadi mein naach gaane ke saath baraat aati hui"
+      ],
+      "extra_tokens": "joyful celebration, colorful cultural detail, crowd energy",
+      "id": "festivals_culture",
+      "keywords": [
+        "eid",
+        "wedding",
+        "festival",
+        "diwali",
+        "celebration",
+        "parade",
+        "dance",
+        "music",
+        "shaadi",
+        "naach",
+        "gaa",
+        "mehndi"
+      ],
+      "label": "Festivals & Culture",
+      "lighting_default": "festive warm light with colorful accents",
+      "style": "cinematic"
+    },
+    {
+      "camera_default": "smooth dolly shot through the workspace",
+      "caption_templates": [
+        "A {subject} working in {setting}, {camera}, {lighting}, modern professional detail",
+        "{subject} using advanced technology in {setting}, {camera}, clean tech aesthetic"
+      ],
+      "description": "Offices, startups, gadgets, labs, factories, future work.",
+      "example_prompts_en": [
+        "A young engineer testing a robot arm in a bright modern laboratory",
+        "A startup team presenting around a glass table in a sunlit office"
+      ],
+      "example_prompts_ur": [
+        "daftar mein ek ladka computer par kaam kar raha hai",
+        "factory mein machine chalti hui aur mazdoor kaam karte hue"
+      ],
+      "extra_tokens": "modern professional environment, detailed technology",
+      "id": "business_tech",
+      "keywords": [
+        "office",
+        "business",
+        "computer",
+        "startup",
+        "factory",
+        "engineer",
+        "laboratory",
+        "technology",
+        "meeting",
+        "daftar",
+        "kaam"
+      ],
+      "label": "Business & Technology",
+      "lighting_default": "clean modern lighting",
+      "style": "cinematic"
+    },
+    {
+      "camera_default": "slow hypnotic push through the abstract scene",
+      "caption_templates": [
+        "Abstract {subject} flowing in {setting}, {camera}, {lighting}, fluid artistic motion",
+        "Surreal {subject} with {colors}, {camera}, dreamlike composition"
+      ],
+      "description": "Colors, shapes, particles, ink, surreal and experimental visuals.",
+      "example_prompts_en": [
+        "Colorful ink swirling and blooming in clear water in slow motion",
+        "Golden particles forming a glowing geometric mandala in darkness"
+      ],
+      "example_prompts_ur": [
+        "paani mein rangeen siyahi phailti hui khoobsurat shaklein banati hai",
+        "andhere mein chamakte sunehray zaray gol ghumte hue"
+      ],
+      "extra_tokens": "fluid abstract motion, rich color gradients, artistic composition",
+      "id": "abstract_art",
+      "keywords": [
+        "abstract",
+        "colors",
+        "particles",
+        "ink",
+        "paint",
+        "surreal",
+        "geometric",
+        "liquid",
+        "rang",
+        "khwab"
+      ],
+      "label": "Abstract & Art",
+      "lighting_default": "luminous artistic lighting",
+      "style": "3d_animation"
+    }
+  ],
+  "note": "The owner's 'train it on everything' instruction, implemented as data: every major video domain with bilingual example prompts and caption templates. The base model's broad knowledge comes from its open weights; this curriculum steers prompting, balanced batch generation and dataset curation; user data then specializes the model via the flywheel LoRA rounds."
+}

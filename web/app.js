@@ -2,9 +2,27 @@
 (function () {
   "use strict";
 
-  var state = { kind: "video", style: "cinematic", aspect: "16:9" };
+  var state = { kind: "video", style: "cinematic", voice: "Ava", aspect: "16:9" };
   var lastSig = null;
   var seen = {};
+  var styleItems = [];
+
+  /* Audio mode: the chips row offers voice characters instead of styles.
+     The selected voice name travels in the job's existing style field. */
+  var VOICES = [
+    { value: "Ava", label: "Ava · Warm female" },
+    { value: "Emma", label: "Emma · British female" },
+    { value: "Michael", label: "Michael · Deep male" },
+    { value: "George", label: "George · British male" },
+    { value: "Sky", label: "Sky · Young female" },
+    { value: "Adam", label: "Adam · Casual male" }
+  ];
+
+  var PLACEHOLDERS = {
+    video: "Describe anything… a panda astronaut planting a flag on the moon",
+    image: "Describe the image… a lighthouse at golden hour",
+    audio: "Type the words to speak…"
+  };
 
   function $(id) { return document.getElementById(id); }
 
@@ -33,14 +51,26 @@
     });
   }
 
+  /* The chips row shows styles for video/image, voices for audio. */
+  function renderChips() {
+    var label = $("chips-label");
+    if (state.kind === "audio") {
+      if (label) label.textContent = "Voice";
+      chipRow($("styles"), VOICES, state.voice,
+        function (v) { state.voice = v; });
+    } else {
+      if (label) label.textContent = "Style";
+      chipRow($("styles"), styleItems, state.style,
+        function (v) { state.style = v; });
+    }
+  }
+
   function loadOptions() {
     fetch("/api/options").then(function (r) { return r.json(); }).then(function (o) {
       state.style = o.defaults.style;
       state.aspect = o.defaults.aspect;
-      chipRow($("styles"),
-        o.styles.map(function (s) { return { value: s.id, label: s.label }; }),
-        state.style,
-        function (v) { state.style = v; });
+      styleItems = o.styles.map(function (s) { return { value: s.id, label: s.label }; });
+      renderChips();
       chipRow($("aspects"),
         o.aspects.map(function (a) { return { value: a, label: a }; }),
         state.aspect,
@@ -70,6 +100,8 @@
     });
     $("media-opts").classList.toggle("hidden", state.kind === "audio");
     $("duration-wrap").classList.toggle("hidden", state.kind !== "video");
+    $("prompt").placeholder = PLACEHOLDERS[state.kind];
+    renderChips();
     moveThumb();
   }
 
@@ -107,7 +139,7 @@
       body: JSON.stringify({
         prompt: prompt,
         kind: state.kind,
-        style: state.style,
+        style: state.kind === "audio" ? state.voice : state.style,
         aspect: state.aspect,
         duration: parseFloat($("duration").value || "3")
       })

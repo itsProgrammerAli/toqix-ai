@@ -3,31 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TOQIX AI — Socho. Bolo. Ban Gaya.</title>
+<title>TOQIX AI</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header class="topbar">
+<div class="aurora" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
+
+<header class="topbar glass">
   <div class="logo">TOQIX<span>AI</span></div>
-  <div class="tagline">Socho. Bolo. Ban Gaya.</div>
 </header>
 
 <main>
-  <section class="composer">
-    <textarea id="prompt" rows="3"
-      placeholder="Apna idea likho… e.g. ek billi barish mein bhaag rahi hai — or: a panda astronaut planting a flag on the moon"></textarea>
+  <section class="feed-wrap">
+    <h2 class="feed-title">Creations</h2>
+    <div id="feed" class="feed"></div>
+  </section>
+  <footer>TOQIX AI</footer>
+</main>
 
+<section class="composer glass">
+  <textarea id="prompt" rows="2"
+    placeholder="Describe anything… a panda astronaut planting a flag on the moon"></textarea>
+
+  <div class="style-row">
+    <span class="opt-label">Style</span>
+    <div class="chips scroll" id="styles"></div>
+  </div>
+
+  <div class="controls">
     <div class="seg" id="kind-seg">
+      <span class="seg-thumb" id="seg-thumb"></span>
       <button type="button" data-kind="video" class="active">Video</button>
       <button type="button" data-kind="image">Image</button>
       <button type="button" data-kind="audio">Audio</button>
     </div>
 
-    <div class="chips" id="styles"></div>
-
     <div class="opt-line" id="media-opts">
+      <span class="opt-label">Ratio</span>
       <div class="chips" id="aspects"></div>
-      <label class="dur" id="duration-wrap">Duration
+      <label class="dur" id="duration-wrap"><span class="opt-label">Length</span>
         <select id="duration">
           <option value="2">2s</option>
           <option value="3" selected>3s</option>
@@ -38,15 +52,9 @@
     </div>
 
     <button id="generate" class="primary">Generate</button>
-    <p id="msg" class="msg"></p>
-  </section>
-
-  <section class="feed-wrap">
-    <div id="feed" class="feed"></div>
-  </section>
-</main>
-
-<footer>TOQIX AI · Socho. Bolo. Ban Gaya.</footer>
+  </div>
+  <p id="msg" class="msg"></p>
+</section>
 
 <script src="/static/app.js"></script>
 </body>

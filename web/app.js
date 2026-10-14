@@ -1,9 +1,10 @@
-// TOQIX AI — clean studio UI. Plain JS, same-origin API only. No external requests.
+// TOQIX AI — Liquid Glass studio UI. Plain JS, same-origin API only. No external requests.
 (function () {
   "use strict";
 
   var state = { kind: "video", style: "cinematic", aspect: "16:9" };
   var lastSig = null;
+  var seen = {};
 
   function $(id) { return document.getElementById(id); }
 
@@ -48,27 +49,53 @@
     }).catch(function () { /* offline: chips stay empty, Generate still posts defaults */ });
   }
 
+  /* sliding highlight for the Video|Image|Audio segmented control */
+  function moveThumb() {
+    var thumb = $("seg-thumb");
+    if (!thumb) return;
+    var active = null;
+    Array.prototype.forEach.call($("kind-seg").children, function (b) {
+      if (b.tagName === "BUTTON" && b.getAttribute("data-kind") === state.kind) active = b;
+    });
+    if (!active) return;
+    thumb.style.width = active.offsetWidth + "px";
+    thumb.style.transform = "translateX(" + active.offsetLeft + "px)";
+  }
+
   function applyKind() {
     Array.prototype.forEach.call($("kind-seg").children, function (b) {
-      b.classList.toggle("active", b.getAttribute("data-kind") === state.kind);
+      if (b.tagName === "BUTTON") {
+        b.classList.toggle("active", b.getAttribute("data-kind") === state.kind);
+      }
     });
     $("media-opts").classList.toggle("hidden", state.kind === "audio");
     $("duration-wrap").classList.toggle("hidden", state.kind !== "video");
+    moveThumb();
   }
 
   Array.prototype.forEach.call($("kind-seg").children, function (b) {
+    if (b.tagName !== "BUTTON") return;
     b.addEventListener("click", function () {
       state.kind = b.getAttribute("data-kind");
       applyKind();
     });
   });
+  window.addEventListener("resize", moveThumb);
+
+  /* textarea auto-grow, up to ~5 lines */
+  var ta = $("prompt");
+  function grow() {
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 148) + "px";
+  }
+  ta.addEventListener("input", grow);
 
   function generate() {
     var msg = $("msg");
-    var prompt = $("prompt").value.trim();
+    var prompt = ta.value.trim();
     msg.textContent = ""; msg.className = "msg";
     if (!prompt) {
-      msg.textContent = "Pehle apna idea likho.";
+      msg.textContent = "Write your idea first.";
       msg.className = "msg err";
       return;
     }
@@ -93,7 +120,8 @@
         msg.className = "msg err";
         return;
       }
-      $("prompt").value = "";
+      ta.value = "";
+      grow();
       lastSig = null;
       refresh();
     }).catch(function (e) {
@@ -129,17 +157,16 @@
     }
     if (st === "generating") {
       var p = Math.max(0, Math.min(100, j.progress || 0));
-      return '<div class="media"><div class="pct">' + p + '<small>%</small></div>' +
+      return '<div class="media generating"><div class="pct">' + p + '<small>%</small></div>' +
         '<div class="bar"><i style="width:' + p + '%"></i></div>' +
-        '<div class="note">Generating…</div></div>';
+        '<div class="note">Generating</div></div>';
     }
     if (st === "failed") {
-      return '<div class="media"><div class="fail">Generation failed' +
-        (j.error ? " — " + esc(j.error) : "") + "</div></div>";
+      return '<div class="media failed"><div class="fail">Failed — try again' +
+        (j.error ? "<br><span>" + esc(j.error) + "</span>" : "") + "</div></div>";
     }
     // queued
-    return '<div class="media"><div class="bar shimmer"><i></i></div>' +
-      '<div class="note">Queue mein hai — generation jald shuru hogi</div></div>';
+    return '<div class="media queued"><div class="note big">In queue — generation will start soon</div></div>';
   }
 
   function sendFeedback(jobId, fields) {
@@ -185,14 +212,14 @@
 
   var KIND_LABEL = { video: "Video", image: "Image", audio: "Audio" };
   var STATUS_LABEL = {
-    queued: "Queue mein hai", generating: "Generating",
+    queued: "In queue", generating: "Generating",
     done: "Done", failed: "Failed"
   };
 
   function card(j) {
     var st = displayStatus(j);
     var div = document.createElement("div");
-    div.className = "card";
+    div.className = "card glass";
     var meta = [KIND_LABEL[j.kind] || "Video", j.style, j.aspect];
     if (j.kind === "video") meta.push(j.duration + "s");
     div.innerHTML =
@@ -221,10 +248,20 @@
     var box = $("feed");
     box.innerHTML = "";
     if (!jobs.length) {
-      box.innerHTML = '<p class="empty">Abhi kuch nahi bana — upar apna pehla idea likho.</p>';
+      box.innerHTML = '<p class="empty">Nothing here yet — write your first idea in the box below.</p>';
       return;
     }
-    jobs.forEach(function (j) { box.appendChild(card(j)); });
+    var fresh = 0;
+    jobs.forEach(function (j) {
+      var c = card(j);
+      if (!seen[j.id]) {
+        seen[j.id] = true;
+        c.classList.add("enter");
+        c.style.animationDelay = Math.min(fresh * 70, 490) + "ms";
+        fresh++;
+      }
+      box.appendChild(c);
+    });
   }
 
   function refresh() {
@@ -236,4 +273,5 @@
   loadOptions();
   refresh();
   setInterval(refresh, 4000);
+  requestAnimationFrame(moveThumb);
 })();

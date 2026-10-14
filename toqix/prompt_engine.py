@@ -59,10 +59,16 @@ _URDU_WORDS = {
     "ro": "crying", "hans": "laughing", "so": "sleeping",
     "tair": "swimming", "ud": "flying", "khel": "playing",
     "kha": "eating", "pee": "drinking", "lad": "fighting",
+    "doob": "setting", "doobta": "setting", "doobti": "setting",
+    "ubhar": "rising", "ubharta": "rising", "ubharti": "rising",
+    "ugta": "rising", "ugti": "rising",
+    "nikal": "rising", "nikalta": "rising", "nikalti": "rising",
     # qualities / time
     "sundar": "beautiful", "khubsurat": "beautiful", "bara": "big",
     "chota": "small", "tez": "fast", "dheere": "slow", "naya": "new",
     "purana": "old", "subah": "morning", "shaam": "evening",
+    "ghuroob": "sunset", "tulu": "sunrise", "tuloo": "sunrise",
+    "maghrib": "dusk",
     "raat": "night", "din": "day", "laal": "red", "neela": "blue",
     "hara": "green", "peela": "yellow", "kala": "black",
     "safed": "white",
@@ -208,6 +214,7 @@ def enhance_prompt(
     aspect: str = "16:9",
     duration: float = 3,
     domain_id: str | None = None,
+    kind: str = "video",
 ) -> dict:
     """Expand a short user prompt into a Wan-ready prompt + negative prompt.
 
@@ -242,6 +249,29 @@ def enhance_prompt(
     mood = _match_rules(_MOOD_RULES, low)
 
     subject = translated.rstrip(".")
+
+    if kind == "audio":
+        # Audio jobs get a simple production template, no visual tokens.
+        return {
+            "original": original,
+            "translated": translated,
+            "enhanced_prompt": (
+                f"High-quality audio recording: {subject}. "
+                "Clear, professionally produced, well-mixed, "
+                "no background noise."
+            ),
+            "negative_prompt": (
+                "low quality, distortion, clipping, background noise, "
+                "hiss, hum, muffled, echo"
+            ),
+            "camera": "",
+            "lighting": "",
+            "mood": mood or "",
+            "style": style,
+            "domain": domain["id"] if domain else "",
+            "kind": kind,
+        }
+
     parts = [
         subject,
         camera,
@@ -252,10 +282,14 @@ def enhance_prompt(
     parts.append(preset["tokens"])
     if domain:
         parts.append(domain["extra_tokens"])
-    parts.append(
-        "high quality, sharp details, smooth continuous motion, "
-        "consistent subject across frames, physically plausible movement"
-    )
+    if kind == "image":
+        # Still image: no motion language.
+        parts.append("high quality, sharp details, crisp focus, rich detail")
+    else:
+        parts.append(
+            "high quality, sharp details, smooth continuous motion, "
+            "consistent subject across frames, physically plausible movement"
+        )
     if aspect == "9:16":
         parts.append("vertical composition")
     elif aspect == "1:1":
@@ -280,4 +314,5 @@ def enhance_prompt(
         "mood": mood or "",
         "style": style,
         "domain": domain["id"] if domain else "",
+        "kind": kind,
     }

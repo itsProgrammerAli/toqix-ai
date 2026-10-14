@@ -114,6 +114,17 @@ def mux_audio(video: str | Path, audio: str | Path, dst: str | Path,
     return dst
 
 
+def to_jpg(src: str | Path, dst: str | Path) -> Path:
+    """Convert a still image (PNG/WebP/…) to JPG."""
+    src, dst = Path(src), Path(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    _run([
+        "ffmpeg", "-y", "-i", str(src),
+        "-frames:v", "1", "-q:v", "3", str(dst),
+    ])
+    return dst
+
+
 def thumbnail(video: str | Path, dst: str | Path, at_seconds: float = 0.5) -> Path:
     """Extract a single JPG frame for the gallery."""
     video, dst = Path(video), Path(dst)

@@ -23,6 +23,7 @@ app = FastAPI(title="TOQIX AI Studio", version="1.0.0")
 
 class JobCreate(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=2000)
+    kind: str = "video"            # "video" | "image" | "audio"
     style: str = "cinematic"
     aspect: str = config.DEFAULT_ASPECT
     duration: float = config.DEFAULT_DURATION
@@ -30,6 +31,11 @@ class JobCreate(BaseModel):
     seed: int = config.DEFAULT_SEED
     consent: bool = False          # flywheel training consent — default OFF
     domain: str = ""               # curriculum domain id; "" = auto-detect
+
+
+class ProgressIn(BaseModel):
+    progress: int = Field(..., ge=0, le=100)
+    status: str | None = None      # optional transition, e.g. "generating"
 
 
 class FeedbackIn(BaseModel):
@@ -101,7 +107,7 @@ def create_job(body: JobCreate):
         job = jobs.create_job(
             prompt=body.prompt, style=body.style, aspect=body.aspect,
             duration=body.duration, model=body.model, seed=body.seed,
-            consent=body.consent, domain=body.domain,
+            consent=body.consent, domain=body.domain, kind=body.kind,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -177,6 +183,21 @@ def list_jobs():
     return jobs.list_jobs()
 
 
+@app.post("/api/jobs/{job_id}/progress")
+def job_progress(job_id: str, body: ProgressIn):
+    """Live progress reports from the generation runner:
+    {"progress": 0-100, "status": optional transition}."""
+    if not jobs.get_job(job_id):
+        raise HTTPException(status_code=404, detail="job not found")
+    fields: dict = {"progress": body.progress}
+    if body.status is not None:
+        fields["status"] = body.status
+    try:
+        return jobs.update_job(job_id, **fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str):
     job = jobs.get_job(job_id)
@@ -197,34 +218,69 @@ def get_package(job_id: str):
                         filename=f"toqix_job_{job_id}.json")
 
 
+_IMPORT_EXTS = {
+    "video": (".mp4", ".mov", ".mkv", ".webm"),
+    "image": (".jpg", ".jpeg", ".png", ".webp"),
+    "audio": (".mp3", ".wav", ".m4a", ".ogg"),
+}
+
+
 @app.post("/api/jobs/{job_id}/import")
 async def import_result(job_id: str, file: UploadFile = File(...)):
-    """Import a finished MP4 (from the Colab runner): normalize it to
-    delivery spec, extract a JPG thumbnail, mark the job done."""
+    """Import a finished result for a job, per kind:
+    video → normalize to delivery spec + JPG thumbnail;
+    image → save (PNG/WebP converted to JPG when ffmpeg is available),
+    the image itself is its thumbnail;
+    audio → save as-is, no thumbnail. Marks the job done at 100%."""
     job = jobs.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="job not found")
-    if not (file.filename or "").lower().endswith((".mp4", ".mov", ".mkv", ".webm")):
-        raise HTTPException(status_code=400, detail="expected a video file")
+    kind = job.get("kind") or "video"
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in _IMPORT_EXTS.get(kind, ()):
+        raise HTTPException(status_code=400, detail=f"expected a {kind} file")
 
-    raw_path = config.IMPORTS_DIR / f"{job_id}_raw{Path(file.filename).suffix.lower()}"
+    raw_path = config.IMPORTS_DIR / f"{job_id}_raw{suffix}"
     with raw_path.open("wb") as fh:
         shutil.copyfileobj(file.file, fh)
 
-    out_path = config.OUTPUTS_DIR / f"{job_id}.mp4"
-    thumb_path = config.THUMBS_DIR / f"{job_id}.jpg"
     try:
-        postprocess.normalize(raw_path, out_path)
-        postprocess.thumbnail(out_path, thumb_path)
+        if kind == "video":
+            out_path = config.OUTPUTS_DIR / f"{job_id}.mp4"
+            thumb_path = config.THUMBS_DIR / f"{job_id}.jpg"
+            postprocess.normalize(raw_path, out_path)
+            postprocess.thumbnail(out_path, thumb_path)
+            jobs.update_job(
+                job_id, status="done", progress=100,
+                output_path=f"/outputs/{out_path.name}",
+                thumb_path=f"/thumbs/{thumb_path.name}",
+            )
+        elif kind == "image":
+            out_path = config.OUTPUTS_DIR / f"{job_id}.jpg"
+            if suffix in (".jpg", ".jpeg"):
+                shutil.copyfile(raw_path, out_path)
+            elif shutil.which("ffmpeg"):
+                postprocess.to_jpg(raw_path, out_path)
+            else:  # no ffmpeg: keep the original format as-is
+                out_path = config.OUTPUTS_DIR / f"{job_id}{suffix}"
+                shutil.copyfile(raw_path, out_path)
+            jobs.update_job(
+                job_id, status="done", progress=100,
+                output_path=f"/outputs/{out_path.name}",
+                thumb_path=f"/outputs/{out_path.name}",
+            )
+        else:  # audio — stored as-is, no thumbnail
+            out_path = config.OUTPUTS_DIR / f"{job_id}{suffix}"
+            shutil.copyfile(raw_path, out_path)
+            jobs.update_job(
+                job_id, status="done", progress=100,
+                output_path=f"/outputs/{out_path.name}",
+                thumb_path=None,
+            )
     except Exception as exc:  # ffmpeg error etc.
         jobs.update_job(job_id, status="failed", error=str(exc)[:500])
         raise HTTPException(status_code=422, detail=f"import failed: {exc}")
 
-    jobs.update_job(
-        job_id, status="done",
-        output_path=f"/outputs/{out_path.name}",
-        thumb_path=f"/thumbs/{thumb_path.name}",
-    )
     return jobs.get_job(job_id)
 
 

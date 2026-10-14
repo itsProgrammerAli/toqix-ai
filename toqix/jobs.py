@@ -19,7 +19,8 @@ from .prompt_engine import enhance_prompt
 
 _LOCK = threading.Lock()
 
-STATUSES = ("queued", "exported", "running", "done", "failed")
+STATUSES = ("queued", "exported", "generating", "running", "done", "failed")
+KINDS = ("video", "image", "audio")
 
 
 def _conn() -> sqlite3.Connection:
@@ -52,6 +53,8 @@ def init_db() -> None:
                 thumbs          INTEGER NOT NULL DEFAULT 0,
                 consent         INTEGER NOT NULL DEFAULT 0,
                 domain          TEXT NOT NULL DEFAULT '',
+                kind            TEXT NOT NULL DEFAULT 'video',
+                progress        INTEGER NOT NULL DEFAULT 0,
                 created_at      REAL NOT NULL,
                 updated_at      REAL NOT NULL
             )
@@ -64,6 +67,8 @@ def init_db() -> None:
             ("thumbs", "INTEGER NOT NULL DEFAULT 0"),
             ("consent", "INTEGER NOT NULL DEFAULT 0"),
             ("domain", "TEXT NOT NULL DEFAULT ''"),
+            ("kind", "TEXT NOT NULL DEFAULT 'video'"),
+            ("progress", "INTEGER NOT NULL DEFAULT 0"),
         ):
             if col not in existing:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {ddl}")
@@ -71,6 +76,8 @@ def init_db() -> None:
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
+    d["kind"] = d.get("kind") or "video"
+    d["progress"] = int(d.get("progress") or 0)
     d["consent"] = bool(d.get("consent", 0))
     # API-surface aliases for the flywheel feedback contract:
     # train_consent mirrors consent; feedback renders thumbs as up/down.
@@ -102,6 +109,7 @@ def job_package(job: dict) -> dict:
         "steps": job["steps"],
         "guidance": job["guidance"],
         "seed": job["seed"],
+        "kind": job.get("kind", "video"),
         "domain": job.get("domain", ""),
         "lora_name": config.LORA_NAME,
         "created_by": "TOQIX AI Studio",
@@ -123,15 +131,18 @@ def create_job(
     seed: int = config.DEFAULT_SEED,
     consent: bool = False,
     domain: str = "",
+    kind: str = "video",
 ) -> dict:
     if model not in config.MODELS:
         raise ValueError(f"unknown model: {model}")
     if aspect not in config.ASPECT_SIZES:
         raise ValueError(f"unknown aspect: {aspect}")
+    if kind not in KINDS:
+        raise ValueError(f"unknown kind: {kind}")
 
     enhanced = enhance_prompt(
         prompt, style=style, aspect=aspect, duration=duration,
-        domain_id=domain or None,
+        domain_id=domain or None, kind=kind,
     )
     job_id = uuid.uuid4().hex[:12]
     now = time.time()
@@ -140,16 +151,16 @@ def create_job(
             """
             INSERT INTO jobs (id, prompt, translated, enhanced_prompt,
                               negative_prompt, style, aspect, duration,
-                              model, seed, status, consent, domain,
-                              created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'exported', ?, ?, ?, ?)
+                              model, seed, status, consent, domain, kind,
+                              progress, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, 0, ?, ?)
             """,
             (
                 job_id, enhanced["original"], enhanced["translated"],
                 enhanced["enhanced_prompt"], enhanced["negative_prompt"],
                 style, aspect, float(duration), model, int(seed),
                 1 if consent else 0,
-                domain or enhanced.get("domain", ""), now, now,
+                domain or enhanced.get("domain", ""), kind, now, now,
             ),
         )
     job = get_job(job_id)
@@ -188,13 +199,17 @@ def gallery(limit: int = 100) -> list[dict]:
 def update_job(job_id: str, **fields) -> dict | None:
     allowed = {
         "status", "output_path", "thumb_path", "error", "package_path",
-        "rating", "thumbs", "consent", "domain",
+        "rating", "thumbs", "consent", "domain", "progress",
     }
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
         return get_job(job_id)
     if "status" in fields and fields["status"] not in STATUSES:
         raise ValueError(f"bad status: {fields['status']}")
+    if "progress" in fields:
+        fields["progress"] = int(fields["progress"])
+        if not (0 <= fields["progress"] <= 100):
+            raise ValueError("progress must be 0-100")
     if "rating" in fields and not (0 <= int(fields["rating"]) <= 5):
         raise ValueError("rating must be 0-5")
     if "thumbs" in fields and int(fields["thumbs"]) not in (-1, 0, 1):

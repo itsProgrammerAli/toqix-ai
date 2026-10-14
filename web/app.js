@@ -310,6 +310,125 @@
     return d;
   }
 
+  var CHAT_FALLBACK = "My thinking worker went offline — ask me about " +
+    "creating something, or try again in a moment.";
+
+  /*CHATPOLL-BEGIN*/
+  /* Async agent replies: when the chat POST answers with a
+     pending_chat_job, a GPU worker is writing the reply. The pending
+     bubble polls for it and streams partial text in until it is done.
+     Each job id gets at most one poller; every exit path (done,
+     failed, timeout, cancel) stops the timer chain and drops the
+     registry entry, so nothing leaks or double-polls. */
+  var CHAT_POLL_MS = 2000;
+  var CHAT_POLL_TIMEOUT_MS = 150000;
+  var pendingPolls = {}; // chat job id -> { stop: fn }
+
+  function chatScroll() {
+    var chat = $("chat");
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addPendingBubble() {
+    var chat = $("chat");
+    var d = document.createElement("div");
+    d.className = "bubble agent pending";
+    var txt = document.createElement("span");
+    txt.className = "think-text";
+    txt.textContent = "TOQIX is thinking…";
+    var dots = document.createElement("span");
+    dots.className = "think-dots";
+    dots.setAttribute("aria-hidden", "true");
+    dots.innerHTML = "<i></i><i></i><i></i>";
+    d.appendChild(txt);
+    d.appendChild(dots);
+    chat.appendChild(d);
+    chatScroll();
+    return { bubble: d, dots: dots, text: txt };
+  }
+
+  function addChatNote(text) {
+    var chat = $("chat");
+    var d = document.createElement("div");
+    d.className = "chat-note";
+    d.textContent = text;
+    chat.appendChild(d);
+    chatScroll();
+  }
+
+  function startChatPoll(jobId, ui) {
+    if (!jobId || pendingPolls[jobId]) return; // one poller per job
+    var started = Date.now();
+    var timer = null;
+    var stopped = false;
+
+    function stop() {
+      if (stopped) return;
+      stopped = true;
+      if (timer) { clearTimeout(timer); timer = null; }
+      delete pendingPolls[jobId];
+    }
+    pendingPolls[jobId] = { stop: stop };
+
+    function finish(d) {
+      stop();
+      ui.dots.remove();
+      ui.bubble.classList.remove("pending");
+      ui.text.textContent = d.reply;
+      chatScroll();
+      if (d.queued_jobs && d.queued_jobs.length) {
+        addChatNote("Added to your creations");
+        lastSig = null; // feed re-renders and picks the new job up
+        refresh();
+      }
+    }
+
+    function fail() {
+      stop();
+      ui.dots.remove();
+      ui.bubble.classList.remove("pending");
+      ui.bubble.classList.add("err");
+      ui.text.textContent = CHAT_FALLBACK;
+      chatScroll();
+    }
+
+    function schedule() {
+      if (stopped) return;
+      if (Date.now() - started >= CHAT_POLL_TIMEOUT_MS) { fail(); return; }
+      timer = setTimeout(tick, CHAT_POLL_MS);
+    }
+
+    function tick() {
+      timer = null;
+      if (stopped) return;
+      if (Date.now() - started >= CHAT_POLL_TIMEOUT_MS) { fail(); return; }
+      fetch("/api/agent/chat/" + encodeURIComponent(jobId))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; })
+        .then(function (d) {
+          if (stopped) return; // finished/cancelled while fetching
+          if (!d) { schedule(); return; } // transient hiccup: keep trying
+          if (d.status === "done") {
+            if (d.reply) finish(d); else fail();
+            return;
+          }
+          if (d.status === "failed") { fail(); return; }
+          // queued | generating: stream any partial text, keep the dots
+          if (d.reply) { ui.text.textContent = d.reply; chatScroll(); }
+          schedule();
+        });
+    }
+
+    schedule();
+  }
+
+  function cancelAllChatPolls() {
+    Object.keys(pendingPolls).forEach(function (id) {
+      pendingPolls[id].stop();
+    });
+  }
+  /*CHATPOLL-END*/
+
   function agentRequest(text, isGreeting) {
     if (state.agentBusy) return;
     state.agentBusy = true;
@@ -331,7 +450,13 @@
       if (!res.ok || !res.j) { addBubble(AGENT_ERR, "agent err"); return; }
       var d = res.j;
       if (d.project) upsertProject(d.project);
-      if (d.reply) addBubble(d.reply, "agent");
+      if (d.pending_chat_job) {
+        /* Async reply: agentBusy is already cleared above, so the
+           input stays free; this bubble polls and streams on its own. */
+        startChatPoll(d.pending_chat_job, addPendingBubble());
+      } else if (d.reply) {
+        addBubble(d.reply, "agent");
+      }
       if (d.created_jobs && d.created_jobs.length) { lastSig = null; refresh(); }
     }).catch(function () {
       typing.remove();
@@ -377,6 +502,7 @@
 
   $("new-series").addEventListener("click", function () {
     if (state.agentBusy) return;
+    cancelAllChatPolls(); // pending bubbles are about to be wiped
     setActiveProject(null);
     $("chat").innerHTML = "";
     state.agentGreeted = true;

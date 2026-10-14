@@ -56,6 +56,8 @@ def init_db() -> None:
                 kind            TEXT NOT NULL DEFAULT 'video',
                 progress        INTEGER NOT NULL DEFAULT 0,
                 project_id      TEXT DEFAULT NULL,
+                claimed_by      TEXT DEFAULT NULL,
+                claimed_at      REAL DEFAULT NULL,
                 created_at      REAL NOT NULL,
                 updated_at      REAL NOT NULL
             )
@@ -71,6 +73,8 @@ def init_db() -> None:
             ("kind", "TEXT NOT NULL DEFAULT 'video'"),
             ("progress", "INTEGER NOT NULL DEFAULT 0"),
             ("project_id", "TEXT DEFAULT NULL"),
+            ("claimed_by", "TEXT DEFAULT NULL"),
+            ("claimed_at", "REAL DEFAULT NULL"),
         ):
             if col not in existing:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {ddl}")
@@ -82,6 +86,11 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d["progress"] = int(d.get("progress") or 0)
     # Series/agent jobs carry their project id; normal jobs are null.
     d["project_id"] = d.get("project_id") or None
+    # Worker-mesh claim fields: who holds this job, and when the claim
+    # was last touched (claim or progress heartbeat); null when unheld.
+    d["claimed_by"] = d.get("claimed_by") or None
+    _claimed_at = d.get("claimed_at")
+    d["claimed_at"] = float(_claimed_at) if _claimed_at is not None else None
     d["consent"] = bool(d.get("consent", 0))
     # API-surface aliases for the flywheel feedback contract:
     # train_consent mirrors consent; feedback renders thumbs as up/down.
@@ -217,6 +226,7 @@ def update_job(job_id: str, **fields) -> dict | None:
     allowed = {
         "status", "output_path", "thumb_path", "error", "package_path",
         "rating", "thumbs", "consent", "domain", "progress",
+        "claimed_by", "claimed_at",
     }
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
@@ -240,6 +250,81 @@ def update_job(job_id: str, **fields) -> dict | None:
             f"UPDATE jobs SET {assignments} WHERE id = ?",
             (*fields.values(), job_id),
         )
+    return get_job(job_id)
+
+
+# ---------------------------------------------------------------------------
+# Worker mesh — atomic claims.
+#
+# Many free-GPU sessions (Colab on any account, Kaggle, ...) can work the
+# SAME queue in parallel: a worker atomically claims one waiting job, the
+# claim is stamped with the worker's name, and progress posts act as a
+# heartbeat that refreshes the stamp. If a session dies silently, its
+# claim goes stale and the job returns to the pool automatically.
+# ---------------------------------------------------------------------------
+
+STALE_CLAIM_SECONDS = 45 * 60  # 45 minutes without a heartbeat = dead worker
+WAITING_STATUSES = ("queued", "exported")
+
+
+def release_stale_claims(max_age: float = STALE_CLAIM_SECONDS) -> int:
+    """Return jobs held by (presumably dead) workers to the waiting pool.
+
+    A claim is stale when the job is still 'generating', its last claim /
+    heartbeat stamp is older than ``max_age`` seconds, and it produced
+    no output. Returns how many jobs were released.
+    """
+    cutoff = time.time() - max_age
+    with _LOCK, _conn() as conn:
+        cur = conn.execute(
+            """
+            UPDATE jobs
+               SET status = 'queued', progress = 0,
+                   claimed_by = NULL, claimed_at = NULL,
+                   updated_at = ?
+             WHERE status = 'generating'
+               AND claimed_at IS NOT NULL
+               AND claimed_at < ?
+               AND (output_path IS NULL OR output_path = '')
+            """,
+            (time.time(), cutoff),
+        )
+        return cur.rowcount
+
+
+def claim_job(job_id: str, worker: str) -> dict | None:
+    """Atomically claim one waiting job for ``worker``.
+
+    The status check and the claim stamp happen inside a single
+    BEGIN IMMEDIATE transaction, so two workers racing for the same job
+    cannot both win: exactly one gets the job; the other gets None.
+    Returns the claimed job dict, or None when the job is not waiting
+    (already claimed, generating, done, failed, or unknown).
+    """
+    now = time.time()
+    with _LOCK:
+        conn = _conn()
+        conn.isolation_level = None  # manual transaction control
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT status FROM jobs WHERE id = ?", (job_id,)
+            ).fetchone()
+            if row is None or row["status"] not in WAITING_STATUSES:
+                conn.execute("ROLLBACK")
+                return None
+            conn.execute(
+                """
+                UPDATE jobs
+                   SET status = 'generating', progress = 1,
+                       claimed_by = ?, claimed_at = ?, updated_at = ?
+                 WHERE id = ?
+                """,
+                (worker, now, now, job_id),
+            )
+            conn.execute("COMMIT")
+        finally:
+            conn.close()
     return get_job(job_id)
 
 

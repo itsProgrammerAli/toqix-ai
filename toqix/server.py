@@ -9,6 +9,7 @@ and publishes it in the gallery. Zero external calls.
 from __future__ import annotations
 
 import shutil
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -36,6 +37,11 @@ class JobCreate(BaseModel):
 class ProgressIn(BaseModel):
     progress: int = Field(..., ge=0, le=100)
     status: str | None = None      # optional transition, e.g. "generating"
+    worker: str | None = None      # worker identity — heartbeat refresh
+
+
+class ClaimIn(BaseModel):
+    worker: str = Field(..., min_length=1, max_length=120)  # e.g. "colab-a3f9"
 
 
 class FeedbackIn(BaseModel):
@@ -185,18 +191,53 @@ def dataset_latest():
 
 @app.get("/api/jobs")
 def list_jobs():
+    # Dead workers' jobs return to the pool before anyone reads the queue.
+    jobs.release_stale_claims()
     return jobs.list_jobs()
+
+
+@app.post("/api/jobs/{job_id}/claim")
+def claim_job(job_id: str, body: ClaimIn):
+    """Atomically claim one waiting job for a worker (the worker mesh).
+
+    Exactly one worker can win a job: the winner gets 200 + the job
+    (now status "generating", stamped with claimed_by / claimed_at);
+    everyone else gets 409 {"detail": "already claimed", "status": ...}.
+    Stale claims are released first, so a job whose worker died can be
+    claimed again here.
+    """
+    jobs.release_stale_claims()
+    if not jobs.get_job(job_id):
+        raise HTTPException(status_code=404, detail="job not found")
+    claimed = jobs.claim_job(job_id, body.worker)
+    if claimed is None:
+        current = jobs.get_job(job_id)
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": "already claimed",
+                "status": current["status"] if current else "unknown",
+            },
+        )
+    return claimed
 
 
 @app.post("/api/jobs/{job_id}/progress")
 def job_progress(job_id: str, body: ProgressIn):
     """Live progress reports from the generation runner:
-    {"progress": 0-100, "status": optional transition}."""
+    {"progress": 0-100, "status": optional transition, "worker": optional}.
+
+    Every progress post is also a claim HEARTBEAT: it refreshes the
+    job's claimed_at stamp (and records claimed_by when the worker
+    names itself), so a live worker's job is never mistaken for stale.
+    """
     if not jobs.get_job(job_id):
         raise HTTPException(status_code=404, detail="job not found")
-    fields: dict = {"progress": body.progress}
+    fields: dict = {"progress": body.progress, "claimed_at": time.time()}
     if body.status is not None:
         fields["status"] = body.status
+    if body.worker:
+        fields["claimed_by"] = body.worker
     try:
         return jobs.update_job(job_id, **fields)
     except ValueError as exc:
@@ -259,6 +300,7 @@ async def import_result(job_id: str, file: UploadFile = File(...)):
                 job_id, status="done", progress=100,
                 output_path=f"/outputs/{out_path.name}",
                 thumb_path=f"/thumbs/{thumb_path.name}",
+                claimed_by=None, claimed_at=None,
             )
         elif kind == "image":
             out_path = config.OUTPUTS_DIR / f"{job_id}.jpg"
@@ -273,6 +315,7 @@ async def import_result(job_id: str, file: UploadFile = File(...)):
                 job_id, status="done", progress=100,
                 output_path=f"/outputs/{out_path.name}",
                 thumb_path=f"/outputs/{out_path.name}",
+                claimed_by=None, claimed_at=None,
             )
         else:  # audio — stored as-is, no thumbnail
             out_path = config.OUTPUTS_DIR / f"{job_id}{suffix}"
@@ -281,9 +324,11 @@ async def import_result(job_id: str, file: UploadFile = File(...)):
                 job_id, status="done", progress=100,
                 output_path=f"/outputs/{out_path.name}",
                 thumb_path=None,
+                claimed_by=None, claimed_at=None,
             )
     except Exception as exc:  # ffmpeg error etc.
-        jobs.update_job(job_id, status="failed", error=str(exc)[:500])
+        jobs.update_job(job_id, status="failed", error=str(exc)[:500],
+                        claimed_by=None, claimed_at=None)
         raise HTTPException(status_code=422, detail=f"import failed: {exc}")
 
     return jobs.get_job(job_id)

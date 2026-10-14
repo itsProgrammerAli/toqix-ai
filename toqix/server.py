@@ -200,10 +200,12 @@ def dataset_latest():
 
 
 @app.get("/api/jobs")
-def list_jobs():
+def list_jobs(include_chat: bool = False):
     # Dead workers' jobs return to the pool before anyone reads the queue.
+    # The public feed hides chat jobs (conversations, not creations);
+    # workers pass include_chat=1 so they can see and claim them.
     jobs.release_stale_claims()
-    return jobs.list_jobs()
+    return jobs.list_jobs(include_chat=include_chat)
 
 
 @app.post("/api/jobs/{job_id}/claim")

@@ -231,10 +231,15 @@ def get_job(job_id: str) -> dict | None:
     return _row_to_dict(row) if row else None
 
 
-def list_jobs(limit: int = 100) -> list[dict]:
+def list_jobs(limit: int = 100, include_chat: bool = False) -> list[dict]:
+    # Chat jobs are conversations, not creations: they stay out of the
+    # public feed (and the dataset curation) unless include_chat is set.
+    # The worker runner passes include_chat=1 so it can claim them.
+    where = "" if include_chat else " WHERE kind != 'chat'"
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+            "SELECT * FROM jobs" + where
+            + " ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
@@ -243,7 +248,7 @@ def list_project_jobs(project_id: str, limit: int = 500) -> list[dict]:
     """All jobs of one agent series project, oldest first (Part 1, 2, …)."""
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM jobs WHERE project_id = ? "
+            "SELECT * FROM jobs WHERE project_id = ? AND kind != 'chat' "
             "ORDER BY created_at ASC LIMIT ?",
             (project_id, limit),
         ).fetchall()

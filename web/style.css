@@ -536,7 +536,12 @@ body.lb-open { overflow: hidden; }
   .wide-only { display: none; }
   .bottom-dock { bottom: 12px; gap: 8px; }
   .controls { grid-template-columns: 1fr auto; row-gap: 8px; }
-  .controls .seg { grid-column: 1 / -1; grid-row: 1; }
+  /* The Video|Image|Audio switch spans the full bar width on phones
+     with its three options evenly distributed — each option centered
+     in its own third, so the group is perfectly placed at any width
+     or font (owner: "teen options centerly placed nahi hoye"). */
+  .controls .seg { grid-column: 1 / -1; grid-row: 1; justify-self: stretch; }
+  .controls .seg button { flex: 1 1 0; }
   .opt-line { grid-column: 1; grid-row: 2; }
   .controls .primary { grid-column: 2; grid-row: 2; }
   /* Audio on mobile goes back to the old compact form: a narrower

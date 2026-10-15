@@ -669,13 +669,23 @@ def wake_status() -> dict:
         except (TypeError, ValueError):
             wake = None
     with _conn() as conn:
-        waiting = conn.execute(
-            "SELECT COUNT(*) FROM jobs WHERE status IN ('queued', 'exported')"
-        ).fetchone()[0]
+        waiting, oldest = conn.execute(
+            "SELECT COUNT(*), MIN(created_at) FROM jobs "
+            "WHERE status IN ('queued', 'exported')"
+        ).fetchone()
     online = sum(1 for w in list_workers() if w["online"])
+    needed = bool(wake) and waiting > 0 and online == 0
+    since = (wake or {}).get("since")
+    if not needed and waiting > 0 and online == 0 and oldest is not None:
+        # Jobs queued while a worker was alive never raised the flag.
+        # If the fleet has since died and a job has been waiting a
+        # while, that backlog IS a wake request.
+        if time.time() - float(oldest) > 180:
+            needed = True
+            since = float(oldest)
     return {
-        "needed": bool(wake) and waiting > 0 and online == 0,
-        "since": (wake or {}).get("since"),
+        "needed": needed,
+        "since": since,
         "job_id": (wake or {}).get("job_id"),
         "kind": (wake or {}).get("kind"),
         "waiting_jobs": waiting,

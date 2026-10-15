@@ -6,7 +6,7 @@
 <title>TOQIX Control Room</title>
 <link rel="stylesheet" href="/static/style.css">
 <style>
-  .cr-wrap { max-width: 1280px; margin: 0 auto; padding: 96px 16px 60px; position: relative; z-index: 1; }
+  .cr-wrap { max-width: 1360px; margin: 0 auto; padding: 96px 16px 60px; position: relative; z-index: 1; }
   .cr-tag { font-size: 11px; font-weight: 800; letter-spacing: .14em; color: #0b0b10;
     background: linear-gradient(90deg, #a78bfa, #22d3ee);
     padding: 3px 9px; border-radius: 999px; vertical-align: 3px; margin-left: 6px; }
@@ -24,128 +24,262 @@
   .stat .n { font-size: 28px; font-weight: 800; }
   .stat .l { font-size: 12.5px; color: rgba(255,255,255,.55); margin-top: 2px; }
   .stat.bad .n { color: #ff9c9c; }
-  .cr-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
+  .cr-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
   @media (max-width: 900px) { .cr-grid { grid-template-columns: 1fr; } }
   .panel { padding: 18px; border-radius: 18px; }
   .panel h2 { font-size: 16px; margin: 0 0 6px; letter-spacing: .02em; }
-  .stage-zone { margin-top: 14px; }
-  .stage-zone h3 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .12em;
-    color: rgba(255,255,255,.45); margin: 0 0 4px; font-weight: 700; }
-  .unit-row { display: flex; flex-wrap: wrap; gap: 10px; }
   .empty-note { color: rgba(255,255,255,.4); font-size: 13.5px; padding: 14px 4px; }
 
-  /* ---------- the units (2D characters) ---------- */
-  .unit { --acc: #22d3ee; position: relative; width: 168px; padding: 26px 10px 12px;
-    border-radius: 16px; text-align: center;
-    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-    border: 1px solid rgba(255,255,255,.1); }
-  .unit.wide { width: 262px; }
-  .unit.plat-kaggle { --acc: #22d3ee; }
-  .unit.plat-colab { --acc: #f5a544; }
-  .unit.plat-local { --acc: #a78bfa; }
-  .char { height: 104px; display: flex; align-items: flex-end; justify-content: center; }
-  .char.sm { height: 74px; }
-  .char-svg { height: 100%; width: auto; overflow: visible;
-    animation: bob 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
-  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-  .unit.st-busy .char-svg, .unit.st-awake .char-svg { animation-duration: .95s; }
-  .unit.st-off .char-svg, .unit.st-none .char-svg, .unit.st-sleep .char-svg { animation-duration: 5.5s; }
-  .unit.st-off .char, .unit.st-none .char { filter: grayscale(1) brightness(.62); }
-  .unit.st-sleep .char { filter: brightness(.72) saturate(.6); }
-  .unit.st-error .char { filter: saturate(1.1); }
+  /* ---------- camera controls ---------- */
+  .camrow { display: flex; gap: 8px; align-items: center; margin: 4px 0 12px; flex-wrap: wrap; }
+  .cambtn { appearance: none; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.78); font: inherit; font-size: 12.5px; font-weight: 600;
+    padding: 8px 14px; border-radius: 999px; cursor: pointer; letter-spacing: .03em; }
+  .cambtn:hover { background: rgba(255,255,255,.12); color: #fff; }
+  .cambtn.active { background: linear-gradient(90deg, rgba(167,139,250,.4), rgba(34,211,238,.4));
+    border-color: rgba(167,139,250,.65); color: #fff; }
+  .camhint { font-size: 11.5px; color: rgba(255,255,255,.42); margin-left: auto; }
 
-  .platform { height: 12px; margin: 2px 14px 0; border-radius: 50%;
-    background: radial-gradient(ellipse at center, rgba(255,255,255,.28), rgba(255,255,255,.05) 70%); }
-  .unit.st-busy .platform, .unit.st-awake .platform {
-    background: radial-gradient(ellipse at center, var(--acc), rgba(255,255,255,.04) 72%);
+  /* ---------- the floor: viewport + world ---------- */
+  #viewport { position: relative; overflow: hidden; border-radius: 14px; aspect-ratio: 16 / 9;
+    background: linear-gradient(180deg, #151a2e 0%, #101322 52%, #0c0e19 100%);
+    border: 1px solid rgba(255,255,255,.09); }
+  #world { position: absolute; left: 0; top: 0; width: 1600px; height: 900px;
+    transform-origin: 0 0; will-change: transform; }
+  .vig { position: absolute; inset: 0; pointer-events: none; z-index: 5; border-radius: 14px;
+    box-shadow: inset 0 0 110px rgba(0,0,0,.5); }
+  .wall { position: absolute; left: 0; top: 0; width: 1600px; height: 152px;
+    background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0));
+    border-bottom: 2px solid rgba(255,255,255,.07); }
+  .floorgrid { position: absolute; left: 0; top: 152px; width: 1600px; height: 748px;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,.026) 0 2px, transparent 2px 74px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.026) 0 2px, transparent 2px 80px); }
+  .zone-label { position: absolute; font-size: 21px; font-weight: 800; letter-spacing: .16em;
+    color: rgba(255,255,255,.42); white-space: nowrap; }
+  .zone-tag { position: absolute; font-size: 18px; font-weight: 800; letter-spacing: .14em;
+    color: rgba(255,255,255,.6); white-space: nowrap; }
+
+  .board { position: absolute; left: 560px; top: 20px; width: 480px; height: 106px; z-index: 40;
+    border-radius: 12px; background: linear-gradient(180deg, #0e1730, #0a1020);
+    border: 2px solid rgba(87,230,201,.35); box-shadow: 0 0 26px rgba(87,230,201,.12);
+    padding: 12px 18px; box-sizing: border-box; }
+  .board h4 { margin: 0 0 8px; font-size: 19px; letter-spacing: .2em; color: #57e6c9; }
+  .board .blines i { display: block; height: 6px; border-radius: 3px; margin-top: 6px;
+    background: linear-gradient(90deg, rgba(87,230,201,.75), rgba(34,211,238,.25)); }
+  .board .board-sub { margin-top: 9px; font-size: 11.5px; letter-spacing: .22em; color: rgba(255,255,255,.4); }
+
+  .shelf { position: absolute; width: 180px; height: 168px; top: 392px; z-index: 60; }
+  .shelf.q { left: 36px; } .shelf.o { left: 1384px; }
+  .shelf-back { position: absolute; inset: 0; border-radius: 12px;
+    background: rgba(255,255,255,.05); border: 1.5px solid rgba(255,255,255,.11); }
+  .shelf-board { position: absolute; left: 8px; right: 8px; bottom: 34px; height: 8px;
+    border-radius: 4px; background: #3a4062; }
+  .shelf .zone-tag { left: 50%; transform: translateX(-50%); bottom: -32px; }
+  #qboxes { position: absolute; left: 14px; bottom: 42px; width: 152px;
+    display: flex; flex-wrap: wrap-reverse; gap: 5px; }
+
+  .restzone { position: absolute; left: 24px; top: 624px; width: 420px; height: 208px; z-index: 30;
+    border-radius: 18px; background: rgba(88,72,180,.1); border: 1.5px dashed rgba(167,139,250,.32); }
+  .restzone .zone-tag { left: 14px; top: 8px; font-size: 16px; }
+  .moon { position: absolute; right: 26px; top: 10px; width: 34px; height: 34px; border-radius: 50%;
+    background: transparent; box-shadow: 9px 5px 0 0 rgba(217,220,255,.85); transform: rotate(-18deg); }
+  .bean { position: absolute; border-radius: 50%; }
+  .bean.b1 { left: 26px; bottom: 14px; width: 76px; height: 30px; background: rgba(167,139,250,.32); }
+  .bean.b2 { left: 128px; bottom: 10px; width: 90px; height: 34px; background: rgba(34,211,238,.25); }
+  .bean.b3 { left: 246px; bottom: 14px; width: 72px; height: 28px; background: rgba(245,165,68,.28); }
+
+  #command, #workers, #systems, #fx, #actors { position: absolute; inset: 0; }
+  #actors { pointer-events: none; }
+  #actors .actor { pointer-events: auto; cursor: pointer; }
+  .console { position: absolute; left: 596px; top: 204px; width: 128px; height: 62px; z-index: 1400; }
+  .console-screen { width: 66px; height: 42px; margin: 0 auto; border-radius: 6px;
+    background: #0d1430; border: 2px solid rgba(87,230,201,.5); padding-top: 2px; box-sizing: border-box; }
+  .console-screen i { display: block; height: 4px; margin: 6px 9px 0; border-radius: 2px;
+    background: rgba(87,230,201,.55); }
+  .console-screen i:nth-child(2) { margin-right: 22px; }
+  .console-screen i:nth-child(3) { margin-right: 15px; }
+  .console-desk { height: 12px; margin-top: 3px; border-radius: 6px; background: #1d2338;
+    border: 1.5px solid rgba(255,255,255,.16); }
+  .portal { position: absolute; left: 1428px; top: 148px; width: 104px; height: 152px; z-index: 300;
+    border-radius: 50%; border: 3px solid rgba(167,139,250,.55);
+    box-shadow: 0 0 34px rgba(167,139,250,.35), inset 0 0 34px rgba(167,139,250,.25);
+    animation: portalPulse 3.2s ease-in-out infinite; }
+  @keyframes portalPulse { 0%, 100% { box-shadow: 0 0 22px rgba(167,139,250,.25), inset 0 0 22px rgba(167,139,250,.18); }
+    50% { box-shadow: 0 0 42px rgba(167,139,250,.5), inset 0 0 40px rgba(167,139,250,.32); } }
+  .bay { position: absolute; left: 0; top: 836px; width: 1600px; height: 64px;
+    background: rgba(255,255,255,.045); border-top: 1.5px solid rgba(255,255,255,.09); }
+  .baytag { left: 800px; top: 841px; transform: translateX(-50%); font-size: 13.5px; z-index: 20; }
+
+  /* ---------- work pods ---------- */
+  .pod { --acc: #22d3ee; position: absolute; width: 176px; transform: translate(-50%, -100%); }
+  .pod.plat-kaggle { --acc: #22d3ee; } .pod.plat-colab { --acc: #f5a544; } .pod.plat-local { --acc: #a78bfa; }
+  .pod-desk { height: 44px; border-radius: 10px; position: relative;
+    background: linear-gradient(180deg, #242945, #1a1e33); border: 2px solid var(--acc); }
+  .pod.working .pod-desk { box-shadow: 0 0 20px -2px var(--acc); }
+  .pod-screen { position: absolute; left: 13px; top: -25px; width: 52px; height: 35px; border-radius: 5px;
+    background: #0d1430; border: 2px solid var(--acc); overflow: hidden; }
+  .pod-screen::after { content: ""; position: absolute; inset: 5px;
+    background: repeating-linear-gradient(0deg, rgba(87,230,201,.5) 0 3px, transparent 3px 7px); }
+  .pod-name { position: absolute; left: 0; right: 0; top: 15px; text-align: center;
+    font-size: 11.5px; font-weight: 700; color: rgba(255,255,255,.66); white-space: nowrap; overflow: hidden; }
+  .pod-plat { height: 12px; margin: 3px 18px 0; border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,.26), rgba(255,255,255,.04) 70%); }
+  .pod.working .pod-plat { background: radial-gradient(ellipse at center, var(--acc), rgba(255,255,255,.04) 72%);
     animation: platPulse 1.6s ease-in-out infinite; }
   @keyframes platPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-  .unit.st-error .platform {
-    background: radial-gradient(ellipse at center, rgba(255,80,80,.85), rgba(255,255,255,.04) 72%);
-    animation: errPulse 1.15s ease-out infinite; }
-  @keyframes errPulse {
-    0% { box-shadow: 0 0 0 0 rgba(255,80,80,.55); }
-    70% { box-shadow: 0 0 0 13px rgba(255,80,80,0); }
-    100% { box-shadow: 0 0 0 0 rgba(255,80,80,0); } }
+  .pod-box { display: none; }
+  .pod.working .pod-box { display: block; position: absolute; right: 12px; top: -21px; }
 
-  /* robot parts */
+  /* ---------- job boxes ---------- */
+  .jobbox { width: 36px; height: 28px; border-radius: 4px; position: relative; flex: none;
+    background: linear-gradient(180deg, #d29a55, #b57e3e); border: 2px solid #8a5a24; box-sizing: border-box; }
+  .jobbox::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 6px;
+    transform: translateX(-50%); background: rgba(255,235,200,.55); }
+  .jobbox::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 5px;
+    transform: translateY(-50%); background: rgba(255,235,200,.35); }
+  .sprite .jobbox { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+    display: none; z-index: 3; }
+  .actor.carrying .sprite .jobbox { display: block; }
+
+  /* ---------- actors ---------- */
+  .actor { --acc: #22d3ee; --dir: 1; position: absolute; left: 0; top: 0; width: 0; height: 0;
+    will-change: transform; }
+  .actor.plat-kaggle { --acc: #22d3ee; } .actor.plat-colab { --acc: #f5a544; }
+  .actor.plat-local { --acc: #a78bfa; }
+  .a-robot { --sh: 124px; } .a-robot.mini { --sh: 58px; }
+  .a-manager { --sh: 118px; } .a-wizard { --sh: 118px; }
+  .a-helper { --sh: 64px; } .a-drone { --sh: 86px; }
+  .flip { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%) scaleX(var(--dir)); }
+  .a-robot.mini .flip { transform: translate(-50%, -100%) scaleX(var(--dir)) scale(.45); }
+  .a-drone .flip { transform: translate(-50%, -50%); }
+  .sprite { position: relative; transform-origin: 50% 100%; animation: breathe 3.4s ease-in-out infinite; }
+  @keyframes breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  .a-robot .sprite svg { width: 110px; height: 121px; }
+  .a-manager .sprite svg { width: 104px; height: 114px; }
+  .a-wizard .sprite svg { width: 104px; height: 114px; }
+  .a-helper .sprite svg { width: 58px; height: 61px; }
+  .a-drone .sprite svg { width: 132px; height: 79px; }
+  .char-svg { display: block; overflow: visible; }
+  .actor.walking .sprite { animation: walkBob .36s ease-in-out infinite; }
+  @keyframes walkBob { 0%, 100% { transform: translateY(0) rotate(-1.6deg); }
+    50% { transform: translateY(-6px) rotate(1.6deg); } }
+  .actor.hop .sprite { animation: hopA .5s ease-out; }
+  @keyframes hopA { 0% { transform: translateY(0); } 35% { transform: translateY(-17px); }
+    100% { transform: translateY(0); } }
+  .actor.sad .sprite { animation: shakeA .55s ease-in-out; }
+  @keyframes shakeA { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+  .actor.sleeping .sprite, .actor.offdim .sprite { filter: grayscale(1) brightness(.6); }
+  .a-drone .sprite { animation: none; filter: drop-shadow(0 12px 13px rgba(0,0,0,.45)); }
+
+  .bubblewrap { position: absolute; left: 0; bottom: var(--sh); transform: translateX(-50%);
+    width: 0; display: flex; justify-content: center; pointer-events: none; z-index: 6; }
+  .bubble { position: relative; background: rgba(240,248,255,.95); color: #141824; font-size: 15.5px;
+    font-weight: 800; letter-spacing: .03em; padding: 5px 11px; border-radius: 999px;
+    white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.4); display: none; }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: rgba(240,248,255,.95); border-bottom: 0; }
+  .zzz { position: absolute; left: 30px; bottom: calc(var(--sh) - 8px); color: rgba(200,215,255,.8);
+    font-weight: 800; pointer-events: none; display: none; z-index: 6; }
+  .actor.sleeping .zzz, .actor.doze .zzz, .actor.msleep .zzz { display: block; }
+  .zzz span { position: absolute; opacity: 0; animation: zFloat 2.8s linear infinite; font-size: 12px; }
+  .zzz span:nth-child(2) { animation-delay: .9s; font-size: 15px; }
+  .zzz span:nth-child(3) { animation-delay: 1.8s; font-size: 19px; }
+  @keyframes zFloat { 0% { transform: translate(0, 6px); opacity: 0; }
+    25% { opacity: .9; } 100% { transform: translate(10px, -20px); opacity: 0; } }
+  .aname { position: absolute; top: 7px; left: 0; transform: translateX(-50%); font-size: 13.5px;
+    font-weight: 700; white-space: nowrap; color: rgba(255,255,255,.94);
+    text-shadow: 0 2px 7px rgba(0,0,0,.75); }
+  .aname .atag { font-size: 9.5px; font-weight: 800; letter-spacing: .07em; padding: 1.5px 6px;
+    border-radius: 999px; color: #0b0b10; background: var(--acc); vertical-align: 2px; margin-left: 4px; }
+  .astat { position: absolute; top: 26px; left: 0; transform: translateX(-50%); font-size: 10.5px;
+    white-space: nowrap; color: rgba(255,255,255,.58); text-shadow: 0 1px 5px rgba(0,0,0,.8); }
+  .a-drone .aname { top: 47px; background: rgba(18,22,38,.85); border: 1px solid rgba(255,255,255,.28);
+    padding: 2.5px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .06em; }
+  .a-drone .astat { top: 71px; }
+
+  /* SVG part styles (shared with v1 art) */
   .antenna, .mic, .headset, .staff { stroke: #8b93b8; stroke-width: 3; stroke-linecap: round; }
   .tip { fill: #565d7d; }
-  .unit.st-idle .tip, .unit.st-busy .tip, .unit.st-ok .tip, .unit.st-awake .tip {
-    fill: var(--acc); filter: drop-shadow(0 0 5px var(--acc)); }
+  .actor.online .tip, .actor.work .tip, .a-helper.lit .tip { fill: var(--acc);
+    filter: drop-shadow(0 0 5px var(--acc)); }
   .head, .hbody { fill: #2b3049; stroke: var(--acc); stroke-width: 2; }
   .body { fill: #232842; stroke: var(--acc); stroke-width: 2; }
   .ear, .neck, .base, .hbase { fill: #3a4062; }
-  .eye { fill: #eaf6ff; transform-box: fill-box; transform-origin: center;
-    animation: blink 4.4s infinite; }
+  .eye { fill: #eaf6ff; transform-box: fill-box; transform-origin: center; animation: blink 4.4s infinite; }
   @keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.08); } }
   .mouth { fill: #8b93b8; }
   .core { fill: var(--acc); opacity: .8; transform-box: fill-box; transform-origin: center; }
-  .unit.st-busy .core { animation: corePulse 1s ease-in-out infinite; }
+  .actor.work .core { animation: corePulse 1s ease-in-out infinite; }
   @keyframes corePulse { 0%, 100% { transform: scale(1); opacity: .7; }
     50% { transform: scale(1.28); opacity: 1; } }
   .arm { fill: #2b3049; stroke: var(--acc); stroke-width: 1.6; transform-box: fill-box; }
   .arm-l { transform-origin: 50% 10%; } .arm-r { transform-origin: 50% 10%; }
-  .unit.st-busy .arm-l { animation: swing .9s ease-in-out infinite; }
-  .unit.st-busy .arm-r { animation: swing .9s ease-in-out infinite reverse; }
+  .actor.walking .arm-l, .actor.work .arm-l { animation: swing .38s ease-in-out infinite; }
+  .actor.walking .arm-r, .actor.work .arm-r { animation: swing .38s ease-in-out infinite reverse; }
+  .actor.work .arm-l, .actor.work .arm-r { animation-duration: .95s; }
   @keyframes swing { 0%, 100% { transform: rotate(10deg); } 50% { transform: rotate(-10deg); } }
-
-  /* operator parts */
+  /* operator */
   .face { fill: #f2c79b; }
   .cap { fill: #31456e; } .cap-brim { fill: #22345a; }
   .pad { fill: #1d2338; stroke: var(--acc); stroke-width: 1.4; }
-  .torso { fill: #31456e; }
-  .desk { fill: #1d2338; stroke: rgba(255,255,255,.16); }
-  .screen { fill: #10182e; stroke: var(--acc); stroke-width: 1.6; }
-  .screen-line { fill: #57e6c9; opacity: .75; }
-  .lamp { fill: #565d7d; }
-  .unit.st-ok .lamp { fill: #35e0a1; filter: drop-shadow(0 0 6px #35e0a1); }
-  .unit.st-error .lamp { fill: #ff5f5f; filter: drop-shadow(0 0 6px #ff5f5f); }
-
-  /* wizard parts */
+  .torso { fill: #31456e; } .legs { fill: #232842; }
+  .a-manager .arm { fill: #31456e; stroke: rgba(255,255,255,.25); }
+  .a-manager.pointing .arm-r { transform: rotate(-138deg); }
+  /* wizard */
   .hat { fill: #4b3482; stroke: #a78bfa; stroke-width: 1.6; }
   .hat-brim { fill: #3a2866; }
   .beard { fill: #e8e6df; }
   .robe { fill: #3a2866; stroke: #a78bfa; stroke-width: 1.6; }
+  .hatg { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .4s; }
+  .a-wizard.doze .hatg { transform: rotate(11deg) translateY(2px); }
+  .staffg { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .3s; }
+  .a-wizard.cast .staffg { transform: rotate(-20deg); }
   .orb { fill: #565d7d; }
-  .unit.st-awake .orb { fill: #c9b8ff; filter: drop-shadow(0 0 9px #a78bfa);
+  .a-wizard.awake .orb { fill: #c9b8ff; filter: drop-shadow(0 0 9px #a78bfa);
     animation: corePulse 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-
-  /* helper bot parts */
+  /* helper */
   .dome { fill: #2b3049; stroke: var(--acc); stroke-width: 2; }
+  .a-helper { --acc: #a78bfa; }
+  .a-helper.unlit .sprite { filter: grayscale(1) brightness(.62); }
+  .a-helper.err .core, .a-helper.err .tip { fill: #ff5f5f; }
+  /* drone */
+  .dstrut { stroke: #8b93b8; stroke-width: 3; stroke-linecap: round; }
+  .dbody { fill: #2b3049; stroke: #8b93b8; stroke-width: 2; }
+  .drot { fill: rgba(190,215,255,.45); } .dhub { fill: #8b93b8; }
+  .rotor { transform-box: fill-box; transform-origin: center; animation: spin .16s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .a-drone.droop .rotor { animation-duration: .55s; }
+  .deye-w { fill: #eaf6ff; }
+  .diris { fill: #35e0a1; transition: fill .4s; }
+  .a-drone.eye-stale .diris { fill: #6b7194; }
+  .a-drone.eye-alert .diris { fill: #ff5f5f; }
+  .dpupil { fill: #10131f; }
+  .dlight { fill: #57e6c9; }
+  .a-drone.eye-alert .dlight { fill: #ff5f5f; }
+  .a-drone.eye-alert .deye-g { transform-box: fill-box; transform-origin: center;
+    animation: eyeBlink .5s ease-in-out infinite; }
+  @keyframes eyeBlink { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.12); } }
 
-  .bubble { position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
-    background: rgba(240,248,255,.95); color: #141824; font-size: 11px; font-weight: 800;
-    letter-spacing: .04em; padding: 4px 9px; border-radius: 999px; white-space: nowrap;
-    box-shadow: 0 4px 14px rgba(0,0,0,.4); z-index: 2; }
-  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -5px;
-    transform: translateX(-50%); border: 5px solid transparent;
-    border-top-color: rgba(240,248,255,.95); border-bottom: 0; }
-  .uname { font-weight: 700; font-size: 13.5px; margin-top: 7px; word-break: break-all; }
-  .utags { display: flex; gap: 6px; justify-content: center; align-items: center;
-    flex-wrap: wrap; margin-top: 4px; }
-  .tag { font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 2px 7px;
-    border-radius: 999px; color: #0b0b10; background: var(--acc); }
-  .caps { font-size: 11px; color: rgba(255,255,255,.5); }
-  .udetail { font-size: 12px; color: rgba(255,255,255,.62); margin-top: 5px;
-    min-height: 15px; word-break: break-word; }
-  .ustatus { font-size: 11.5px; font-weight: 700; margin-top: 3px; color: rgba(255,255,255,.8); }
-  .unit.st-off .ustatus, .unit.st-none .ustatus, .unit.st-sleep .ustatus { color: rgba(255,255,255,.45); }
-  .unit.st-error .ustatus { color: #ff9c9c; }
-  .bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,.12);
-    margin: 8px 8px 0; overflow: hidden; }
-  .bar i { display: block; height: 100%; border-radius: 999px; background: var(--acc);
-    transition: width .6s ease; }
-  .zzz { position: absolute; top: 8px; right: 12px; color: rgba(200,215,255,.75);
-    font-weight: 800; pointer-events: none; }
-  .zzz span { position: absolute; opacity: 0; animation: zFloat 2.8s linear infinite; }
-  .zzz span:nth-child(2) { animation-delay: .9s; font-size: 13px; }
-  .zzz span:nth-child(3) { animation-delay: 1.8s; font-size: 16px; }
-  .zzz span:nth-child(1) { font-size: 11px; }
-  @keyframes zFloat { 0% { transform: translate(0, 6px); opacity: 0; }
-    25% { opacity: .9; } 100% { transform: translate(9px, -18px); opacity: 0; } }
+  /* ---------- fx ---------- */
+  .fx { position: absolute; pointer-events: none; }
+  .puff { width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,110,110,.85), rgba(255,80,80,0) 70%);
+    animation: puffA .7s ease-out forwards; }
+  @keyframes puffA { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.7); opacity: 0; } }
+  .spark { width: 9px; height: 9px; margin: -4px 0 0 -4px; border-radius: 2px; background: #ffe27a;
+    box-shadow: 0 0 9px #ffd94d; animation: sparkA .9s ease-out forwards; }
+  @keyframes sparkA { from { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    to { transform: translate(var(--dx), var(--dy)) rotate(160deg); opacity: 0; } }
+  .flashbox { position: absolute; width: 40px; height: 32px; margin: -16px 0 0 -20px; border-radius: 4px;
+    background: linear-gradient(180deg, #d29a55, #b57e3e); border: 2px solid #35e0a1;
+    animation: flashA 1.3s ease-out forwards; pointer-events: none; }
+  @keyframes flashA { 0% { opacity: 0; transform: translateY(-10px) scale(.7); }
+    25% { opacity: 1; transform: translateY(0) scale(1.06); box-shadow: 0 0 24px rgba(53,224,161,.95); }
+    100% { opacity: 0; transform: translateY(0) scale(1); box-shadow: 0 0 4px rgba(53,224,161,.4); } }
 
-  /* ---------- activity feed ---------- */
+  /* ---------- activity feed (unchanged from v1) ---------- */
   .feed-panel { max-height: 880px; overflow: auto; }
   .feed-item { display: flex; gap: 10px; padding: 10px 2px;
     border-bottom: 1px solid rgba(255,255,255,.07); font-size: 13px; }
@@ -161,6 +295,11 @@
   .fprompt { color: rgba(255,255,255,.78); word-break: break-word; margin-top: 1px; }
   .fmeta { color: rgba(255,255,255,.42); font-size: 11.5px; margin-top: 2px; }
 
+  @media (max-width: 640px) {
+    .cambtn { font-size: 11.5px; padding: 7px 10px; }
+    .camhint { display: none; }
+    .panel { padding: 12px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
@@ -181,10 +320,41 @@
   <div class="cards" id="cards"></div>
   <div class="cr-grid">
     <section class="panel glass">
-      <h2>&#127918; The Stage</h2>
-      <div class="stage-zone"><h3>GPU Fleet</h3><div class="unit-row" id="workers"></div></div>
-      <div class="stage-zone"><h3>Command</h3><div class="unit-row" id="command"></div></div>
-      <div class="stage-zone"><h3>Systems Bay</h3><div class="unit-row" id="systems"></div></div>
+      <h2>&#127916; The Floor — a living cartoon ground</h2>
+      <div class="camrow">
+        <button class="cambtn active" id="cam-movie" type="button">&#127916; Movie Cam</button>
+        <button class="cambtn" id="cam-full" type="button">&#128506;&#65038; Full Ground</button>
+        <button class="cambtn" id="cam-follow" type="button">&#127919; Follow Action</button>
+        <span class="camhint">Movie Cam auto-directs &middot; click any character to focus it</span>
+      </div>
+      <div id="viewport">
+        <div id="world">
+          <div class="wall"></div>
+          <div class="floorgrid"></div>
+          <div class="board"><h4>FLEET BOARD</h4>
+            <div class="blines"><i style="width:62%"></i><i style="width:38%"></i><i style="width:74%"></i></div>
+            <div class="board-sub">TOQIX FLEET &middot; LIVE</div>
+          </div>
+          <div class="shelf q"><div class="shelf-back"></div><div id="qboxes"></div>
+            <div class="shelf-board"></div><div class="zone-tag" id="qtag">QUEUE 0</div></div>
+          <div class="shelf o"><div class="shelf-back"></div>
+            <div class="shelf-board"></div><div class="zone-tag">DELIVERED</div></div>
+          <div class="restzone"><div class="moon"></div><div class="bean b1"></div>
+            <div class="bean b2"></div><div class="bean b3"></div>
+            <div class="zone-tag" id="resttag">REST</div></div>
+          <div id="command">
+            <div class="console"><div class="console-screen"><i></i><i></i><i></i></div>
+              <div class="console-desk"></div></div>
+            <div class="portal"></div>
+          </div>
+          <div class="zone-label" style="left:800px;top:368px;transform:translateX(-50%)">WORK PODS</div>
+          <div id="workers"></div>
+          <div id="systems"><div class="bay"></div><div class="zone-tag baytag">SYSTEMS BAY</div></div>
+          <div id="actors"></div>
+          <div id="fx"></div>
+        </div>
+        <div class="vig"></div>
+      </div>
     </section>
     <aside class="panel glass feed-panel">
       <h2>&#128225; Activity Feed</h2>
@@ -211,6 +381,13 @@
     if (s < 86400) return Math.round(s / 3600) + "h ago";
     return Math.round(s / 86400) + "d ago";
   }
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  var RM = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  var WW = 1600, WH = 900;
+  var viewport = $("viewport"), world = $("world");
+  var actorsLayer = $("actors"), fxLayer = $("fx");
 
   /* ---------------- character art (pure SVG, zero assets) ---------------- */
   function robotSVG() {
@@ -233,36 +410,34 @@
   }
   function operatorSVG() {
     return '<svg class="char-svg" viewBox="0 0 120 132" aria-hidden="true">'
-      + '<path class="torso" d="M40 120 v-32 a20 13 0 0 1 40 0 v32 z"/>'
-      + '<circle class="face" cx="60" cy="33" r="16"/>'
-      + '<path class="cap" d="M43 29 a17 15 0 0 1 34 0 z"/>'
-      + '<rect class="cap-brim" x="39" y="28" width="42" height="5" rx="2.5"/>'
-      + '<path class="headset" d="M42 35 a18 17 0 0 1 36 0" fill="none"/>'
-      + '<rect class="pad" x="39" y="33" width="7" height="13" rx="3.5"/>'
-      + '<rect class="pad" x="74" y="33" width="7" height="13" rx="3.5"/>'
-      + '<path class="mic" d="M77 45 q3 10 -9 12" fill="none"/>'
-      + '<circle class="tip" cx="65" cy="57" r="2.6"/>'
-      + '<circle class="eye" cx="54" cy="35" r="2.4"/>'
-      + '<circle class="eye" cx="66" cy="35" r="2.4"/>'
-      + '<rect class="screen" x="36" y="64" width="48" height="36" rx="4"/>'
-      + '<rect class="screen-line" x="43" y="72" width="24" height="4" rx="2"/>'
-      + '<rect class="screen-line" x="43" y="81" width="33" height="4" rx="2"/>'
-      + '<rect class="screen-line" x="43" y="90" width="18" height="4" rx="2"/>'
-      + '<rect class="desk" x="10" y="102" width="100" height="12" rx="5"/>'
-      + '<circle class="lamp" cx="99" cy="95" r="4.5"/>'
+      + '<rect class="legs" x="45" y="102" width="12" height="26" rx="5"/>'
+      + '<rect class="legs" x="63" y="102" width="12" height="26" rx="5"/>'
+      + '<rect class="arm arm-l" x="29" y="62" width="11" height="36" rx="5.5"/>'
+      + '<rect class="arm arm-r" x="80" y="62" width="11" height="36" rx="5.5"/>'
+      + '<rect class="torso" x="38" y="56" width="44" height="52" rx="11"/>'
+      + '<circle class="face" cx="60" cy="34" r="16"/>'
+      + '<path class="cap" d="M43 30 a17 15 0 0 1 34 0 z"/>'
+      + '<rect class="cap-brim" x="39" y="29" width="42" height="5" rx="2.5"/>'
+      + '<path class="headset" d="M42 36 a18 17 0 0 1 36 0" fill="none"/>'
+      + '<rect class="pad" x="39" y="34" width="7" height="13" rx="3.5"/>'
+      + '<rect class="pad" x="74" y="34" width="7" height="13" rx="3.5"/>'
+      + '<path class="mic" d="M77 46 q3 10 -9 12" fill="none"/>'
+      + '<circle class="tip" cx="65" cy="58" r="2.6"/>'
+      + '<circle class="eye" cx="54" cy="36" r="2.4"/>'
+      + '<circle class="eye" cx="66" cy="36" r="2.4"/>'
       + '</svg>';
   }
   function wizardSVG() {
     return '<svg class="char-svg" viewBox="0 0 120 132" aria-hidden="true">'
-      + '<line class="staff" x1="93" y1="42" x2="93" y2="122"/>'
-      + '<circle class="orb" cx="93" cy="33" r="9.5"/>'
+      + '<g class="staffg"><line class="staff" x1="93" y1="42" x2="93" y2="122"/>'
+      + '<circle class="orb" cx="93" cy="33" r="9.5"/></g>'
       + '<path class="robe" d="M36 126 l11 -46 h26 l11 46 z"/>'
       + '<path class="beard" d="M49 66 q11 15 22 0 l-5 19 q-6 5 -12 0 z"/>'
       + '<circle class="face" cx="60" cy="58" r="13"/>'
       + '<circle class="eye" cx="55" cy="57" r="2.2"/>'
       + '<circle class="eye" cx="65" cy="57" r="2.2"/>'
-      + '<polygon class="hat" points="60,2 39,45 81,45"/>'
-      + '<ellipse class="hat-brim" cx="60" cy="46" rx="28" ry="6"/>'
+      + '<g class="hatg"><polygon class="hat" points="60,2 39,45 81,45"/>'
+      + '<ellipse class="hat-brim" cx="60" cy="46" rx="28" ry="6"/></g>'
       + '</svg>';
   }
   function helperSVG() {
@@ -271,13 +446,461 @@
       + '<circle class="tip" cx="40" cy="6" r="3.5"/>'
       + '<path class="dome" d="M14 45 a26 25 0 0 1 52 0 z"/>'
       + '<rect class="hbody" x="14" y="45" width="52" height="23" rx="9"/>'
-      + '<circle class="eye" cx="40" cy="54" r="6"/>'
+      + '<circle class="core" cx="40" cy="54" r="6"/>'
       + '<ellipse class="hbase" cx="40" cy="75" rx="20" ry="5"/>'
+      + '</svg>';
+  }
+  function droneSVG() {
+    function rotor(x, y) {
+      return '<g class="rotor"><ellipse class="drot" cx="' + x + '" cy="' + y
+        + '" rx="16" ry="4.5"/><circle class="dhub" cx="' + x + '" cy="' + y + '" r="3"/></g>';
+    }
+    return '<svg class="char-svg" viewBox="0 0 140 84" aria-hidden="true">'
+      + '<line class="dstrut" x1="52" y1="34" x2="18" y2="16"/>'
+      + '<line class="dstrut" x1="88" y1="34" x2="122" y2="16"/>'
+      + '<line class="dstrut" x1="52" y1="50" x2="18" y2="68"/>'
+      + '<line class="dstrut" x1="88" y1="50" x2="122" y2="68"/>'
+      + '<rect class="dbody" x="42" y="24" width="56" height="36" rx="12"/>'
+      + '<g class="deye-g"><circle class="deye-w" cx="70" cy="42" r="14.5"/>'
+      + '<circle class="diris" cx="70" cy="42" r="7.5"/>'
+      + '<circle class="dpupil" cx="70" cy="42" r="3.4"/></g>'
+      + rotor(18, 16) + rotor(122, 16) + rotor(18, 68) + rotor(122, 68)
+      + '<circle class="dlight" cx="52" cy="56" r="2.4"/>'
+      + '<circle class="dlight" cx="88" cy="56" r="2.4"/>'
       + '</svg>';
   }
   var ZZ = '<div class="zzz"><span>z</span><span>z</span><span>Z</span></div>';
 
-  /* ---------------- rendering ---------------- */
+  /* ---------------- world layout (1600x900 logical units) ---------------- */
+  var DOOR = { x: -70, y: 730 };
+  var INBOX_FRONT = { x: 292, y: 520 };
+  var OUTBOX_FRONT = { x: 1308, y: 520 };
+  var CONSOLE_POST = { x: 660, y: 268 };
+  var BOARD_FRONT = { x: 800, y: 208 };
+  var WIZ_POST = { x: 1398, y: 322 };
+  var WALK = 120, RUN = 190;
+  function podSlot(i) {
+    var cx = 425 + (i % 5) * 186, deskY = 452 + Math.floor(i / 5) * 184;
+    return { cx: cx, deskY: deskY, front: { x: cx, y: deskY + 64 } };
+  }
+  function restSlot(i) {
+    return { x: 52 + (i % 8) * 48, y: 664 + Math.floor(i / 8) * 47 };
+  }
+  function wanderPoint() { return { x: rand(480, 1340), y: rand(722, 812) }; }
+
+  /* ---------------- actor engine ---------------- */
+  var ACTORS = [];
+  function makeActor(kind, svgHTML, nameHTML) {
+    var el = document.createElement("div");
+    el.className = "actor a-" + kind;
+    el.innerHTML = '<div class="bubblewrap"><div class="bubble"></div></div>' + ZZ
+      + '<div class="flip"><div class="sprite">' + svgHTML
+      + '<div class="jobbox"></div></div></div>'
+      + '<div class="aname">' + (nameHTML || "") + '</div><div class="astat"></div>';
+    actorsLayer.appendChild(el);
+    var a = {
+      kind: kind, el: el, sprite: el.querySelector(".sprite"),
+      bubbleEl: el.querySelector(".bubble"), nameEl: el.querySelector(".aname"),
+      statEl: el.querySelector(".astat"),
+      x: 0, y: 0, dir: 1, plan: [], stepInit: false, waitEnd: 0, walking: false,
+      bubbleUntil: 0, bubbleProgress: false, mode: "boot", nextWander: 0, jobId: null
+    };
+    el._actor = a;
+    ACTORS.push(a);
+    return a;
+  }
+  function setPos(a) {
+    a.el.style.transform = "translate(" + a.x + "px," + a.y + "px)";
+    a.el.style.zIndex = a.kind === "drone" ? 9000 : (1000 + Math.round(a.y));
+  }
+  function setDir(a, d) {
+    if (d !== a.dir) { a.dir = d; a.el.style.setProperty("--dir", d); }
+  }
+  function gotoStep(x, y, s) { return { t: "go", x: x, y: y, s: s || WALK }; }
+  function waitStep(ms) { return { t: "wait", ms: ms }; }
+  function doStep(fn) { return { t: "do", fn: fn }; }
+  function setPlan(a, steps) { a.plan = steps.slice(); a.stepInit = false; }
+  function bubble(a, text, ttl, isProg) {
+    a.bubbleEl.textContent = text;
+    a.bubbleEl.style.display = "block";
+    a.bubbleUntil = performance.now() + (ttl || 2500);
+    a.bubbleProgress = !!isProg;
+  }
+  function hideBubble(a) { a.bubbleEl.style.display = "none"; a.bubbleUntil = 0; }
+  function hop(a) {
+    a.el.classList.remove("hop");
+    void a.el.offsetWidth;
+    a.el.classList.add("hop");
+    setTimeout(function () { a.el.classList.remove("hop"); }, 540);
+  }
+  function progText(a) {
+    return String(a.jobKind || "video").toUpperCase() + " " + (a.progress || 0) + "%";
+  }
+
+  function stepActor(a, dt, now) {
+    a.walking = false;
+    var guard = 0;
+    while (a.plan.length && guard++ < 10) {
+      var st = a.plan[0];
+      if (st.t === "do") { a.plan.shift(); a.stepInit = false; st.fn(); continue; }
+      if (st.t === "wait") {
+        if (!a.stepInit) { a.stepInit = true; a.waitEnd = now + st.ms; }
+        if (now >= a.waitEnd) { a.plan.shift(); a.stepInit = false; continue; }
+        break;
+      }
+      var dx = st.x - a.x, dy = st.y - a.y, dist = Math.sqrt(dx * dx + dy * dy);
+      var stepLen = (RM ? 1e7 : st.s) * dt;
+      if (dist <= Math.max(stepLen, 1.5)) {
+        a.x = st.x; a.y = st.y; a.plan.shift(); a.stepInit = false; continue;
+      }
+      a.x += dx / dist * stepLen;
+      a.y += dy / dist * stepLen;
+      if (Math.abs(dx) > 3) setDir(a, dx > 0 ? 1 : -1);
+      a.walking = true;
+      break;
+    }
+    a.el.classList.toggle("walking", a.walking);
+    setPos(a);
+    if (a.bubbleUntil && now > a.bubbleUntil) {
+      if (a.mode === "work" && a.jobId) bubble(a, progText(a), 6500, true);
+      else hideBubble(a);
+    }
+    if (a.kind === "robot" && a.mode === "off" && !a.plan.length) {
+      a.el.classList.add("sleeping", "mini");
+    }
+    if (a.kind === "robot" && a.mode === "idle" && !a.plan.length && !RM
+        && now >= a.nextWander) {
+      var p = wanderPoint();
+      setPlan(a, [gotoStep(p.x, p.y, 68), waitStep(400 + Math.random() * 1100)]);
+      a.nextWander = now + 2800 + Math.random() * 1800;
+    }
+  }
+
+  /* ---------------- fx ---------------- */
+  function puff(x, y) {
+    var p = document.createElement("div");
+    p.className = "fx puff";
+    p.style.left = x + "px"; p.style.top = y + "px";
+    fxLayer.appendChild(p);
+    setTimeout(function () { p.remove(); }, 760);
+  }
+  function sparkles(x, y) {
+    for (var i = 0; i < 6; i++) {
+      var s = document.createElement("div");
+      s.className = "fx spark";
+      var ang = (i / 6) * Math.PI * 2 + Math.random() * 0.5, d = 34 + Math.random() * 30;
+      s.style.left = x + "px"; s.style.top = y + "px";
+      s.style.setProperty("--dx", Math.cos(ang) * d + "px");
+      s.style.setProperty("--dy", (Math.sin(ang) * d - 14) + "px");
+      fxLayer.appendChild(s);
+      setTimeout(function (el) { el.remove(); }, 950, s);
+    }
+  }
+  function shelfFlash() {
+    var f = document.createElement("div");
+    f.className = "flashbox";
+    f.style.left = "1474px"; f.style.top = "428px";
+    fxLayer.appendChild(f);
+    setTimeout(function () { f.remove(); }, 1360);
+  }
+
+  /* ---------------- pods ---------------- */
+  var pods = new Map();
+  function ensurePod(a) {
+    if (pods.has(a.name)) return;
+    var s = podSlot(a.podIndex % 10);
+    var el = document.createElement("div");
+    el.className = "pod plat-" + a.platform;
+    el.innerHTML = '<div class="pod-desk"><div class="pod-screen"></div>'
+      + '<div class="pod-box jobbox"></div><div class="pod-name"></div></div>'
+      + '<div class="pod-plat"></div>';
+    el.style.left = s.cx + "px";
+    el.style.top = s.deskY + "px";
+    el.style.zIndex = 500 + s.deskY;
+    el.querySelector(".pod-name").textContent = a.name;
+    $("workers").appendChild(el);
+    pods.set(a.name, el);
+  }
+  function removePod(name) {
+    var el = pods.get(name);
+    if (el) { el.remove(); pods.delete(name); }
+  }
+  function podSetWork(a, on) {
+    var el = pods.get(a.name);
+    if (el) el.classList.toggle("working", !!on);
+  }
+
+  /* ---------------- cast: singleton characters ---------------- */
+  var manager = makeActor("manager", operatorSVG(), "Fleet Manager");
+  manager.x = CONSOLE_POST.x; manager.y = CONSOLE_POST.y;
+  manager.lastQueue = null; manager.lastDetail = null; setPos(manager);
+  var wizard = makeActor("wizard", wizardSVG(), "TOQIX Agent");
+  wizard.x = WIZ_POST.x; wizard.y = WIZ_POST.y;
+  wizard.el.classList.add("doze"); setPos(wizard);
+  var drone = makeActor("drone", droneSVG(), "CLONE — NAZAR RAKHNE WALA");
+  drone.x = 800; drone.y = 118; drone.mode = "patrol"; drone.droop = true;
+  drone.fresh = false; drone.alert = false; drone.alertUntil = 0;
+  drone.swoopUntil = 0; drone.lastSwoop = -1e9; drone.failedBase = null;
+  drone.pupil = drone.el.querySelector(".dpupil");
+  drone.el.classList.add("eye-stale", "droop"); setPos(drone);
+
+  var SYSTEMS = [
+    ["self-test", "Self-Test Bot"], ["daily-research", "Research Bot"],
+    ["daily-shorts", "Shorts Bot"], ["model-watch", "Model Scout"]
+  ];
+  var helpers = SYSTEMS.map(function (s, i) {
+    var a = makeActor("helper", helperSVG(), esc(s[1]));
+    a.key = s[0]; a.segX = 200 + i * 400; a.phase = rand(0, 6.28);
+    a.x = a.segX; a.y = 872; a.lastAgo = null; a.lit = false;
+    a.el.classList.add("unlit"); setPos(a);
+    return a;
+  });
+
+  /* ---------------- robots + reconciliation ---------------- */
+  var robots = new Map(), nextPod = 0, nextRest = 0;
+  var feedById = new Map(), prevChatIds = null;
+
+  function createRobot(w) {
+    var a = makeActor("robot", robotSVG(),
+      esc(w.name) + '<span class="atag">' + esc(String(w.platform).toUpperCase()) + "</span>");
+    a.name = w.name; a.platform = w.platform; a.jobId = null;
+    a.podIndex = nextPod++; a.restIndex = nextRest++;
+    a.el.classList.add("plat-" + w.platform);
+    a.el.title = w.name;
+    a.x = DOOR.x; a.y = DOOR.y;
+    setPos(a);
+    robots.set(w.name, a);
+    return a;
+  }
+
+  function reconcileRobot(w) {
+    var a = robots.get(w.name) || createRobot(w);
+    var job = w.current_job || null;
+    a.el.classList.toggle("online", !!w.online);
+    if (w.online) ensurePod(a); else { removePod(a.name); podSetWork(a, false); }
+
+    if (!w.online) {
+      if (a.mode !== "off") {
+        a.jobId = null;
+        a.el.classList.remove("carrying", "work");
+        podSetWork(a, false);
+        a.mode = "off";
+        var s = restSlot(a.restIndex);
+        setPlan(a, [gotoStep(s.x, s.y, WALK)]);
+      }
+      return;
+    }
+    if (a.mode === "off" || a.mode === "boot") {
+      a.el.classList.remove("sleeping", "mini");
+      a.mode = "idle";
+      a.nextWander = performance.now() + rand(300, 1200);
+      var pf = podSlot(a.podIndex % 10).front;
+      setPlan(a, [gotoStep(pf.x, pf.y, RUN)]);
+    }
+    if (job) {
+      if (a.jobId !== job.id) {
+        a.jobId = job.id; a.jobKind = job.kind; a.progress = job.progress || 0;
+        a.hot90 = false;
+        a.el.classList.remove("carrying");
+        podSetWork(a, false);
+        a.mode = "fetch";
+        var front = podSlot(a.podIndex % 10).front;
+        setPlan(a, [
+          gotoStep(INBOX_FRONT.x, INBOX_FRONT.y, RUN),
+          waitStep(600),
+          doStep(function () {
+            a.el.classList.add("carrying");
+            bubble(a, "kaam mil gaya!", 2600);
+            directorEvent("pickup", a);
+          }),
+          gotoStep(front.x, front.y, RUN),
+          doStep(function () {
+            a.el.classList.remove("carrying");
+            podSetWork(a, true);
+            a.el.classList.add("work");
+            a.mode = "work";
+            bubble(a, progText(a), 6500, true);
+          })
+        ]);
+      } else {
+        a.progress = job.progress || 0;
+        a.jobKind = job.kind || a.jobKind;
+        if (a.mode === "work") {
+          a.el.classList.add("work");
+          podSetWork(a, true);
+          if (!(a.bubbleUntil > performance.now() && !a.bubbleProgress)) {
+            bubble(a, progText(a), 6500, true);
+          }
+          if (a.progress >= 90 && !a.hot90) {
+            a.hot90 = true;
+            bubble(a, "GPU garam hay 🔥", 2600);
+          }
+        }
+      }
+    } else if (a.jobId) {
+      var doneId = a.jobId;
+      a.jobId = null;
+      a.el.classList.remove("work");
+      podSetWork(a, false);
+      var f = feedById.get(doneId);
+      if (f && f.status === "failed") {
+        a.mode = "react";
+        setPlan(a, [
+          doStep(function () {
+            a.el.classList.remove("carrying");
+            puff(a.x, a.y - 42);
+            a.el.classList.add("sad");
+            bubble(a, "uff, fail ho gaya", 2800);
+            directorEvent("failed", a);
+          }),
+          waitStep(750),
+          doStep(function () {
+            a.el.classList.remove("sad");
+            a.mode = "idle";
+            a.nextWander = performance.now() + 700;
+          })
+        ]);
+      } else {
+        a.mode = "deliver";
+        setPlan(a, [
+          doStep(function () { a.el.classList.add("carrying"); }),
+          gotoStep(OUTBOX_FRONT.x, OUTBOX_FRONT.y, RUN),
+          doStep(function () {
+            a.el.classList.remove("carrying");
+            shelfFlash();
+            hop(a);
+            bubble(a, "ho gaya! ✓", 2600);
+            directorEvent("delivered", a);
+          }),
+          waitStep(500),
+          doStep(function () {
+            a.mode = "idle";
+            a.nextWander = performance.now() + 900;
+          })
+        ]);
+      }
+    }
+  }
+
+  function reconcileManager(state) {
+    var hb = (state.heartbeats || {})["fleet-manager"] || null;
+    var online = !!(hb && hb.ago_s <= 180);
+    manager.el.classList.toggle("online", online);
+    if (!online) {
+      if (manager.mode !== "sleep") {
+        manager.mode = "sleep";
+        manager.el.classList.add("msleep");
+        setPlan(manager, [gotoStep(CONSOLE_POST.x, CONSOLE_POST.y, WALK)]);
+      }
+      manager.statEl.textContent = hb
+        ? "Signal purana · last " + ago(hb.ago_s) : "No signal yet";
+      return;
+    }
+    manager.el.classList.remove("msleep");
+    manager.statEl.textContent = "Last check-in " + ago(hb.ago_s)
+      + (hb.detail ? " · " + hb.detail : "");
+    if (manager.mode === "sleep" || manager.mode === "boot") manager.mode = "console";
+    var q = (state.queue || {}).queued || 0;
+    var detailChanged = manager.lastDetail !== null && hb.detail !== manager.lastDetail;
+    var queueRose = manager.lastQueue !== null && q > manager.lastQueue;
+    manager.lastDetail = hb.detail;
+    manager.lastQueue = q;
+    if ((queueRose || detailChanged) && manager.mode === "console" && !RM) {
+      manager.mode = "board";
+      setPlan(manager, [
+        gotoStep(BOARD_FRONT.x, BOARD_FRONT.y, WALK),
+        doStep(function () {
+          manager.el.classList.add("pointing");
+          bubble(manager, q > 0 ? "workers lagao!" : "sab theek hay!", 2400);
+          directorEvent("manager", manager);
+        }),
+        waitStep(2000),
+        doStep(function () { manager.el.classList.remove("pointing"); }),
+        gotoStep(CONSOLE_POST.x, CONSOLE_POST.y, WALK),
+        doStep(function () { manager.mode = "console"; })
+      ]);
+    }
+  }
+
+  function reconcileWizard(state) {
+    var ag = state.agent || {};
+    var awake = (ag.chat_workers_online || 0) > 0;
+    wizard.el.classList.toggle("awake", awake);
+    wizard.el.classList.toggle("doze", !awake);
+    wizard.statEl.textContent = awake
+      ? "Awake · " + ag.chat_workers_online + " chat worker(s) · "
+        + (ag.chat_jobs_24h || 0) + " chats/24h"
+      : "Asleep · " + (ag.chat_jobs_24h || 0) + " chats in 24h";
+    var cur = new Set();
+    (state.feed || []).forEach(function (j) { if (j.kind === "chat") cur.add(j.id); });
+    if (prevChatIds) {
+      var fresh = false;
+      cur.forEach(function (id) { if (!prevChatIds.has(id)) fresh = true; });
+      if (fresh) {
+        wizard.el.classList.add("cast");
+        sparkles(wizard.x - 10, wizard.y - 84);
+        setTimeout(function () { wizard.el.classList.remove("cast"); }, 1250);
+      }
+    }
+    prevChatIds = cur;
+  }
+
+  function reconcileHelpers(state) {
+    var hbs = state.heartbeats || {};
+    helpers.forEach(function (a) {
+      var hb = hbs[a.key] || null;
+      var okStatus = hb && (hb.status === "ok" || hb.status === "done"
+        || hb.status === "success");
+      a.lit = !!hb;
+      a.el.classList.toggle("unlit", !hb);
+      a.el.classList.toggle("lit", !!hb);
+      a.el.classList.toggle("err", !!hb && !okStatus);
+      if (!hb) {
+        a.statEl.textContent = "Waiting for first check-in";
+        a.lastAgo = null;
+        return;
+      }
+      a.statEl.textContent = (okStatus ? "Checked in " : "Trouble · ")
+        + ago(hb.ago_s) + (hb.detail ? " · " + hb.detail : "");
+      if (hb.ago_s < 120 && (a.lastAgo === null || hb.ago_s < a.lastAgo - 5)) {
+        hop(a);
+        bubble(a, "check-in!", 2200);
+      }
+      a.lastAgo = hb.ago_s;
+    });
+  }
+
+  function reconcileDrone(state, now) {
+    var hbs = state.heartbeats || {};
+    var ghb = hbs["guardian"] || null;
+    drone.fresh = !!(ghb && ghb.ago_s <= 900);
+    drone.droop = !drone.fresh;
+    var anyErr = false;
+    Object.keys(hbs).forEach(function (k) {
+      if (hbs[k] && hbs[k].status === "error") anyErr = true;
+    });
+    var ft = (state.queue || {}).failed_today || 0;
+    var failedRose = false;
+    if (drone.failedBase === null) drone.failedBase = ft;
+    else if (ft > drone.failedBase) { failedRose = true; drone.failedBase = ft; }
+    if ((anyErr || failedRose) && !RM && drone.mode !== "swoop"
+        && now - drone.lastSwoop > 12000) {
+      drone.mode = "swoop";
+      drone.swoopUntil = now + 5000;
+      drone.alertUntil = now + 6500;
+      drone.lastSwoop = now;
+      bubble(drone, "garbar lag rahi hay!", 3200);
+      directorEvent("alert", drone);
+    }
+    drone.alert = anyErr || now < drone.alertUntil;
+    drone.el.classList.toggle("eye-alert", drone.alert);
+    drone.el.classList.toggle("eye-stale", !drone.alert && !drone.fresh);
+    drone.el.classList.toggle("droop", drone.droop && !drone.alert);
+    drone.statEl.textContent = drone.alert ? "ALERT — garbar!"
+      : drone.fresh ? "nazar rakh raha hay" : "guardian signal purana hay";
+  }
+
+  /* ---------------- cards / feed / shelf (same data as v1) ---------------- */
   function renderCards(state) {
     var q = state.queue || {};
     var online = (state.workers || []).filter(function (w) { return w.online; }).length;
@@ -290,116 +913,7 @@
     ];
     $("cards").innerHTML = cards.map(function (c) {
       return '<div class="stat glass ' + c[2] + '"><div class="n">' + c[0]
-        + '</div><div class="l">' + c[1] + '</div></div>';
-    }).join("");
-  }
-
-  function workerUnit(w) {
-    var st, status, bubble = "", bar = "";
-    if (!w.online) {
-      st = "st-off";
-      status = "Offline · seen " + ago(w.last_seen_ago_s);
-    } else if (w.current_job) {
-      st = "st-busy";
-      var kind = String(w.current_job.kind || "video").toUpperCase();
-      var pct = w.current_job.progress || 0;
-      bubble = '<div class="bubble">' + esc(kind) + " " + pct + "%</div>";
-      bar = '<div class="bar"><i style="width:' + pct + '%"></i></div>';
-      status = "Working · " + esc(kind) + " " + pct + "%";
-    } else {
-      st = "st-idle";
-      status = "Online · ready for work";
-    }
-    var caps = (w.caps && w.caps.length) ? esc(w.caps.join(" · ")) : "—";
-    return '<div class="unit ' + st + " plat-" + esc(w.platform) + '">'
-      + bubble + (st === "st-off" ? ZZ : "")
-      + '<div class="char">' + robotSVG() + '</div><div class="platform"></div>'
-      + '<div class="uname">' + esc(w.name) + '</div>'
-      + '<div class="utags"><span class="tag">'
-      + esc(String(w.platform).toUpperCase()) + '</span>'
-      + '<span class="caps">' + caps + '</span></div>'
-      + bar + '<div class="ustatus">' + esc(status) + '</div></div>';
-  }
-
-  function renderWorkers(state) {
-    var ws = state.workers || [];
-    $("workers").innerHTML = ws.length
-      ? ws.map(workerUnit).join("")
-      : '<div class="empty-note">No workers have checked in yet — the fleet is asleep.</div>';
-  }
-
-  function heartbeatUnit(opts) {
-    // opts: {hb|null, svg, name, role, noneText, okStatus, errStatus}
-    var st, status, detail = "";
-    if (!opts.hb) {
-      st = opts.noneState || "st-none";
-      status = opts.noneText;
-    } else if (opts.hb.status === "ok" || opts.hb.status === "done"
-               || opts.hb.status === "success") {
-      st = opts.okState || "st-ok";
-      status = "Last check-in " + ago(opts.hb.ago_s);
-      detail = opts.hb.detail || "";
-    } else {
-      st = "st-error";
-      status = "Trouble · " + ago(opts.hb.ago_s);
-      detail = opts.hb.detail || opts.hb.status;
-    }
-    return '<div class="unit wide ' + st + " plat-" + opts.plat + '">'
-      + (st === "st-none" || st === "st-sleep" ? ZZ : "")
-      + '<div class="char">' + opts.svg + '</div><div class="platform"></div>'
-      + '<div class="uname">' + esc(opts.name) + '</div>'
-      + '<div class="utags"><span class="tag">' + esc(opts.role) + '</span></div>'
-      + (detail ? '<div class="udetail">' + esc(detail) + '</div>' : "")
-      + '<div class="ustatus">' + esc(status) + '</div></div>';
-  }
-
-  function renderCommand(state) {
-    var hb = (state.heartbeats || {})["fleet-manager"] || null;
-    var manager = heartbeatUnit({
-      hb: hb, svg: operatorSVG(), name: "Fleet Manager", role: "OPERATOR",
-      plat: "local", noneText: "No signal yet — waiting for first check-in"
-    });
-    var ag = state.agent || {};
-    var awake = (ag.chat_workers_online || 0) > 0;
-    var agent = heartbeatUnit({
-      hb: awake ? { status: "ok", detail: "", ago_s: 0 } : null,
-      svg: wizardSVG(), name: "TOQIX Agent", role: "SITE BRAIN",
-      plat: "local", noneState: "st-sleep",
-      noneText: "Asleep · " + (ag.chat_jobs_24h || 0) + " chats in 24h",
-      okState: "st-awake"
-    });
-    if (awake) {
-      agent = agent.replace("Last check-in just now",
-        "Awake · " + ag.chat_workers_online + " chat worker(s) online · "
-        + (ag.chat_jobs_24h || 0) + " chats in 24h");
-    }
-    $("command").innerHTML = manager + agent;
-  }
-
-  var SYSTEMS = [
-    ["self-test", "Self-Test Bot", "SELF-TEST"],
-    ["daily-research", "Research Bot", "RESEARCH"],
-    ["daily-shorts", "Shorts Bot", "SHORTS"],
-    ["model-watch", "Model Scout", "MODEL WATCH"]
-  ];
-  function renderSystems(state) {
-    var hbs = state.heartbeats || {};
-    $("systems").innerHTML = SYSTEMS.map(function (s) {
-      var hb = hbs[s[0]] || null;
-      var st, status, detail = "";
-      if (!hb) { st = "st-none"; status = "Waiting for first check-in"; }
-      else if (hb.status === "ok" || hb.status === "done" || hb.status === "success") {
-        st = "st-ok"; status = "Checked in " + ago(hb.ago_s); detail = hb.detail || "";
-      } else {
-        st = "st-error"; status = "Trouble · " + ago(hb.ago_s); detail = hb.detail || hb.status;
-      }
-      return '<div class="unit ' + st + ' plat-local">'
-        + (st === "st-none" ? ZZ : "")
-        + '<div class="char sm">' + helperSVG() + '</div><div class="platform"></div>'
-        + '<div class="uname">' + esc(s[1]) + '</div>'
-        + '<div class="utags"><span class="tag">' + esc(s[2]) + '</span></div>'
-        + (detail ? '<div class="udetail">' + esc(detail) + '</div>' : "")
-        + '<div class="ustatus">' + esc(status) + '</div></div>';
+        + '</div><div class="l">' + c[1] + "</div></div>";
     }).join("");
   }
 
@@ -418,11 +932,212 @@
       return '<div class="feed-item"><span class="fdot ' + esc(j.status) + '"></span>'
         + '<div class="fmain"><div class="ftitle">'
         + esc(String(j.kind || "video").toUpperCase())
-        + ' <span class="fst">' + esc(j.status) + '</span></div>'
-        + '<div class="fprompt">' + esc(j.prompt || "") + '</div>'
-        + '<div class="fmeta">' + esc(meta.join(" · ")) + '</div></div></div>';
+        + ' <span class="fst">' + esc(j.status) + "</span></div>"
+        + '<div class="fprompt">' + esc(j.prompt || "") + "</div>"
+        + '<div class="fmeta">' + esc(meta.join(" · ")) + "</div></div></div>";
     }).join("");
   }
+
+  var lastQueueShown = -1;
+  function renderQueueShelf(state) {
+    var n = (state.queue || {}).queued || 0;
+    if (n === lastQueueShown) return;
+    lastQueueShown = n;
+    $("qtag").textContent = "QUEUE " + n;
+    var html = "";
+    for (var i = 0; i < Math.min(n, 8); i++) html += '<div class="jobbox"></div>';
+    $("qboxes").innerHTML = html;
+  }
+
+  function reconcile(state) {
+    var now = performance.now();
+    feedById = new Map((state.feed || []).map(function (j) { return [j.id, j]; }));
+    renderCards(state);
+    renderFeed(state);
+    renderQueueShelf(state);
+    var sleeping = 0;
+    (state.workers || []).forEach(function (w) {
+      if (!w.online) sleeping++;
+      reconcileRobot(w);
+    });
+    $("resttag").textContent = "REST"
+      + (sleeping ? " · " + sleeping + " so rahe hain" : "");
+    reconcileManager(state);
+    reconcileWizard(state);
+    reconcileHelpers(state);
+    reconcileDrone(state, now);
+  }
+
+  /* ---------------- drone + helper motion ---------------- */
+  function busiestRobot() {
+    var best = null;
+    robots.forEach(function (a) {
+      if (a.mode === "work" && (!best || (a.progress || 0) > (best.progress || 0))) best = a;
+    });
+    return best;
+  }
+  function stepDrone(now, dt) {
+    var t = now / 1000, tx, ty, sp;
+    if (RM) {
+      drone.x = 800; drone.y = 118;
+    } else if (drone.mode === "swoop") {
+      tx = 800; ty = 428; sp = 330 * dt;
+      if (now > drone.swoopUntil) drone.mode = "patrol";
+      var dx = tx - drone.x, dy = ty - drone.y, d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 2) { drone.x += dx / d * Math.min(sp, d); drone.y += dy / d * Math.min(sp, d); }
+      else drone.y = ty + Math.sin(t * 2.2) * 5;
+    } else {
+      tx = 800 + Math.sin(t * 0.105) * 615;
+      ty = 118 + Math.sin(t * 1.1) * 9 + (drone.droop ? 20 : 0);
+      sp = (drone.droop ? 58 : 118) * dt;
+      var ddx = tx - drone.x, ddy = ty - drone.y, dd = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (dd > 1) { drone.x += ddx / dd * Math.min(sp, dd); drone.y += ddy / dd * Math.min(sp, dd); }
+    }
+    setPos(drone);
+    var tgt = busiestRobot();
+    var gx = tgt ? tgt.x : 800, gy = tgt ? tgt.y : 520;
+    var px = clamp((gx - drone.x) * 0.03, -4.5, 4.5);
+    var py = clamp((gy - drone.y) * 0.03, -3, 3.5);
+    if (drone.pupil) {
+      drone.pupil.setAttribute("transform",
+        "translate(" + px.toFixed(1) + " " + py.toFixed(1) + ")");
+    }
+  }
+  function stepHelpers(dt) {
+    helpers.forEach(function (a) {
+      if (RM) { a.x = a.segX; setPos(a); return; }
+      a.phase += dt * (a.lit ? 0.55 : 0.22);
+      a.x = a.segX + Math.sin(a.phase) * 105;
+      setDir(a, Math.cos(a.phase) >= 0 ? 1 : -1);
+      setPos(a);
+    });
+  }
+
+  /* ---------------- movie camera ---------------- */
+  var cam = {
+    mode: "movie", x: 800, y: 450, s: 1, shot: null, shotQ: [],
+    lastEvent: performance.now(), panStep: 0, override: null
+  };
+  function overviewS() { return viewport.clientWidth / WW; }
+  function actionFactor() { return viewport.clientWidth < 640 ? 1.3 : 1.65; }
+  function framePoint(p, factor) {
+    var s = overviewS() * factor;
+    var vw = viewport.clientWidth, vh = viewport.clientHeight;
+    var w = vw / s, h = vh / s, x = p.x, y = p.y;
+    x = w >= WW ? WW / 2 : clamp(x, w / 2 - 60, WW - w / 2 + 60);
+    y = h >= WH ? WH / 2 : clamp(y, h / 2 - 60, WH - h / 2 + 60);
+    return { x: x, y: y, s: s };
+  }
+  function directorEvent(type, a) {
+    if (RM || cam.mode !== "movie" || !a) return;
+    var dup = (cam.shot && cam.shot.a === a && cam.shot.type === type)
+      || cam.shotQ.some(function (s) { return s.a === a && s.type === type; });
+    if (dup) return;
+    cam.shotQ.push({
+      type: type, a: a,
+      pos: function () {
+        return { x: a.x, y: a.kind === "drone" ? a.y : a.y - 46 };
+      },
+      factor: type === "alert" ? 1.45 : actionFactor(),
+      hold: type === "alert" ? 5200 : 4800
+    });
+    cam.lastEvent = performance.now();
+  }
+  function camTarget(now) {
+    if (RM) return { x: 800, y: 450, s: overviewS() };
+    if (cam.override && now < cam.override.until) {
+      var o = cam.override.a;
+      return framePoint({ x: o.x, y: o.kind === "drone" ? o.y : o.y - 46 },
+        cam.override.factor);
+    }
+    cam.override = null;
+    if (cam.mode === "full") return { x: 800, y: 450, s: overviewS() };
+    if (cam.mode === "follow") {
+      var b = busiestRobot();
+      if (b) return framePoint({ x: b.x, y: b.y - 46 }, actionFactor());
+      var busy = null;
+      robots.forEach(function (a) {
+        if (!busy && (a.mode === "fetch" || a.mode === "deliver")) busy = a;
+      });
+      if (busy) return framePoint({ x: busy.x, y: busy.y - 46 }, actionFactor());
+      return { x: 800, y: 450, s: overviewS() };
+    }
+    /* movie mode */
+    if (cam.shot && now < cam.shot.until) {
+      return framePoint(cam.shot.pos(), cam.shot.factor);
+    }
+    cam.shot = null;
+    if (cam.shotQ.length) {
+      cam.shot = cam.shotQ.shift();
+      cam.shot.until = now + cam.shot.hold;
+      cam.lastEvent = now;
+      return framePoint(cam.shot.pos(), cam.shot.factor);
+    }
+    if (now - cam.lastEvent > 25000) {
+      var pts = [{ x: 210, y: 470 }, { x: 800, y: 520 }, { x: 1470, y: 470 }];
+      var p = pts[cam.panStep % 3];
+      cam.panStep++;
+      cam.lastEvent = now;
+      cam.shot = { type: "pan", a: null, pos: function () { return p; },
+        factor: 1.22, until: now + 6000 };
+      return framePoint(p, 1.22);
+    }
+    var t = now / 1000;
+    return { x: 800 + Math.sin(t * 0.05) * 36, y: 450 + Math.cos(t * 0.037) * 16,
+      s: overviewS() * 1.03 };
+  }
+  function stepCamera(dt, now) {
+    var tg = camTarget(now);
+    var k = RM ? 1 : 1 - Math.exp(-dt * 2.4);
+    cam.x += (tg.x - cam.x) * k;
+    cam.y += (tg.y - cam.y) * k;
+    cam.s += (tg.s - cam.s) * k;
+    var vw = viewport.clientWidth, vh = viewport.clientHeight;
+    world.style.transform = "translate(" + (vw / 2) + "px," + (vh / 2) + "px) scale("
+      + cam.s + ") translate(" + (-cam.x) + "px," + (-cam.y) + "px)";
+  }
+  function setCamMode(mode) {
+    cam.mode = mode; cam.shot = null; cam.shotQ = []; cam.override = null;
+    cam.lastEvent = performance.now();
+    ["movie", "full", "follow"].forEach(function (m) {
+      $("cam-" + m).classList.toggle("active", m === mode);
+    });
+  }
+  $("cam-movie").addEventListener("click", function () { setCamMode("movie"); });
+  $("cam-full").addEventListener("click", function () { setCamMode("full"); });
+  $("cam-follow").addEventListener("click", function () { setCamMode("follow"); });
+  actorsLayer.addEventListener("click", function (ev) {
+    var node = ev.target;
+    while (node && node !== actorsLayer && !node._actor) node = node.parentNode;
+    if (node && node._actor && !RM) {
+      cam.override = { a: node._actor, until: performance.now() + 3500,
+        factor: actionFactor() };
+    }
+  });
+
+  /* ---------------- main loop (pauses when tab hidden) ---------------- */
+  var rafId = 0, lastT = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - lastT) / 1000 || 0);
+    lastT = now;
+    for (var i = 0; i < ACTORS.length; i++) {
+      var a = ACTORS[i];
+      if (a.kind !== "helper" && a.kind !== "drone") stepActor(a, dt, now);
+    }
+    stepHelpers(dt);
+    stepDrone(now, dt);
+    stepCamera(dt, now);
+    rafId = requestAnimationFrame(frame);
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+    } else if (!rafId) {
+      lastT = performance.now();
+      rafId = requestAnimationFrame(frame);
+    }
+  });
 
   /* ---------------- polling + clock ---------------- */
   function setConn(on, txt) {
@@ -438,8 +1153,7 @@
       })
       .then(function (state) {
         setConn(true, "LIVE");
-        renderCards(state); renderWorkers(state);
-        renderCommand(state); renderSystems(state); renderFeed(state);
+        reconcile(state);
       })
       .catch(function () { setConn(false, "RECONNECTING"); });
   }
@@ -448,9 +1162,11 @@
     function p(n) { return (n < 10 ? "0" : "") + n; }
     $("clock").textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
   }
-  setInterval(refresh, 10000);
+  cam.s = overviewS() || 1;
+  setInterval(refresh, 5000);
   setInterval(tickClock, 1000);
   tickClock(); refresh();
+  rafId = requestAnimationFrame(frame);
 })();
 </script>
 </body>

@@ -147,10 +147,16 @@
       state.aspect = o.defaults.aspect;
       styleItems = o.styles.map(function (s) { return { value: s.id, label: s.label }; });
       renderChips();
-      chipRow($("aspects"),
-        o.aspects.map(function (a) { return { value: a, label: a }; }),
-        state.aspect,
-        function (v) { state.aspect = v; });
+      var sel = $("aspect");
+      sel.innerHTML = "";
+      o.aspects.forEach(function (a) {
+        var op = document.createElement("option");
+        op.value = a;
+        op.textContent = a;
+        sel.appendChild(op);
+      });
+      sel.value = state.aspect;
+      sel.addEventListener("change", function () { state.aspect = sel.value; });
       $("duration").value = String(o.defaults.duration);
     }).catch(function () { /* offline: chips stay empty, Generate still posts defaults */ });
   }
@@ -222,7 +228,7 @@
         prompt: prompt,
         kind: state.kind,
         style: state.kind === "audio" ? state.voice : state.style,
-        aspect: state.aspect,
+        aspect: ($("aspect") && $("aspect").value) || state.aspect,
         duration: parseFloat($("duration").value || "3")
       })
     }).then(function (r) {

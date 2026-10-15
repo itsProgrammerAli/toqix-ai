@@ -52,7 +52,8 @@ body {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 12px 22px; border-radius: 999px;
 }
-.logo { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+.logo { font-size: 20px; font-weight: 800; letter-spacing: -.02em; flex: none; }
+.view-seg { flex: none; }
 .logo span {
   margin-left: 5px;
   background: linear-gradient(90deg, #a78bfa, #22d3ee);
@@ -503,4 +504,22 @@ body.lb-open { overflow: hidden; }
   .lb-nav { width: 42px; height: 42px; font-size: 24px; }
   .lb-media video, .lb-media img { max-height: 70vh; }
   .user-name { display: none; }
+}
+
+/* ---------------- responsive header ----------------
+   Mobile: the bar wraps into two tidy rows — logo + account on the
+   first row, the Studio/Agent switch centered on the second — so the
+   sign-in / account buttons never crush or overflow the pill. */
+@media (max-width: 640px) {
+  .topbar {
+    flex-wrap: wrap; row-gap: 8px;
+    padding: 10px 14px; border-radius: 26px;
+  }
+  .logo { order: 1; }
+  .auth-area { order: 2; margin-left: auto; gap: 6px; min-width: 0; }
+  .view-seg { order: 3; margin: 2px auto 0; }
+  .auth-btn { padding: 7px 11px; font-size: 12.5px; }
+  .user-chip { padding: 4px; }
+  .wide-only { display: none; }
+  main { padding-top: 152px; }
 }

@@ -81,9 +81,9 @@
     if (!state.user) {
       if (state.googleConfigured) {
         var a = document.createElement("a");
-        a.className = "auth-btn";
+        a.className = "auth-btn signin-btn";
         a.href = "/auth/google";
-        a.textContent = "Sign in with Google";
+        a.innerHTML = 'Sign in <span class="wide-only">with Google</span>';
         box.appendChild(a);
       }
       return;

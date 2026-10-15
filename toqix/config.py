@@ -81,6 +81,17 @@ DEFAULT_FPS = 16
 DEFAULT_DURATION = 3          # seconds
 DEFAULT_SEED = 42
 
+# The Studio's Length choices for video, in seconds — the composer's
+# Length dropdown is built from this list (served by /api/options).
+VIDEO_DURATIONS = (2, 3, 4, 5, 10)
+
+# A video job at or above this duration (seconds) is HEAVY: ~2x the
+# frames of the longest normal clip. The job dict carries it as
+# "heavy": True, and heavy-only workers (the Kaggle runner variant,
+# whose weekly GPU hours are reserved for exactly this class) claim
+# heavy jobs via claim-next with heavy_only set.
+HEAVY_DURATION = 10.0
+
 # Aspect -> (width, height). All dimensions are multiples of 16, as the
 # Wan VAE requires.
 ASPECT_SIZES = {

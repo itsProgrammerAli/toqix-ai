@@ -167,6 +167,8 @@ class AgentChatIn(BaseModel):
 class ClaimNextIn(BaseModel):
     worker: str = Field(..., min_length=1, max_length=120)
     handled_keys: list = []    # content keys this worker already made
+    heavy_only: bool = False   # True = only heavy (10s+) video jobs —
+                               # the Kaggle worker's lane
 
 
 class BanIn(BaseModel):
@@ -271,6 +273,8 @@ def options():
             {"id": k, "label": v["label"]} for k, v in STYLE_PRESETS.items()
         ],
         "aspects": list(config.ASPECT_SIZES.keys()),
+        # The composer's Length dropdown (video) is built from this.
+        "durations": list(config.VIDEO_DURATIONS),
         "models": [
             {"id": k, "label": v["label"]} for k, v in config.MODELS.items()
         ],
@@ -436,8 +440,11 @@ def claim_next(body: ClaimNextIn):
     """The worker mesh's door (accounts release): a worker asks for
     work and the server atomically claims the oldest waiting job for
     it — workers never download the (now per-user) job list. Returns
-    the claimed job, or 204 when nothing is waiting for this worker."""
-    claimed = jobs.claim_next_waiting(body.worker, body.handled_keys)
+    the claimed job, or 204 when nothing is waiting for this worker.
+    A worker may pass heavy_only to claim only heavy (10s+) videos —
+    the Kaggle worker's reserved lane."""
+    claimed = jobs.claim_next_waiting(body.worker, body.handled_keys,
+                                      body.heavy_only)
     if claimed is None:
         return JSONResponse(status_code=204, content=None)
     return claimed

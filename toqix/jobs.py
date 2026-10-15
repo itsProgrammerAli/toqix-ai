@@ -116,6 +116,15 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["kind"] = d.get("kind") or "video"
     d["progress"] = int(d.get("progress") or 0)
+    # Heavy flag: a 10s+ video is the heavy class of work (see
+    # config.HEAVY_DURATION) — derived here, never stored, so rows
+    # written before the flag existed behave exactly as before.
+    try:
+        _duration = float(d.get("duration") or 0)
+    except (TypeError, ValueError):
+        _duration = 0.0
+    d["heavy"] = bool(d["kind"] == "video"
+                      and _duration >= config.HEAVY_DURATION)
     # Series/agent jobs carry their project id; normal jobs are null.
     d["project_id"] = d.get("project_id") or None
     # Worker-mesh claim fields: who holds this job, and when the claim
@@ -158,6 +167,8 @@ def job_package(job: dict) -> dict:
         "model_hf_id": job["model_hf_id"],
         "width": job["width"],
         "height": job["height"],
+        "duration": job["duration"],
+        "heavy": bool(job.get("heavy", False)),
         "num_frames": job["num_frames"],
         "fps": job["fps"],
         "steps": job["steps"],
@@ -341,7 +352,8 @@ def queue_counts() -> dict:
 
 
 def claim_next_waiting(worker: str,
-                       handled_keys: list | None = None) -> dict | None:
+                       handled_keys: list | None = None,
+                       heavy_only: bool = False) -> dict | None:
     """Server-side claim for the worker mesh (accounts release).
 
     Workers no longer download the whole job list (it now carries
@@ -352,6 +364,11 @@ def claim_next_waiting(worker: str,
     candidate, and content keys the worker already handled this
     session (``handled_keys``: [kind, prompt, aspect, duration,
     style]) are skipped, preserving the runner's dedupe behaviour.
+
+    With ``heavy_only`` set, only heavy jobs (10s+ videos — see
+    config.HEAVY_DURATION) are candidates: the Kaggle worker, whose
+    GPU hours are reserved for the heavy class, takes those while
+    the Colab fleet keeps working the normal queue oldest-first.
     """
     release_stale_claims()
     handled = {tuple(str(x) for x in key) for key in (handled_keys or [])}
@@ -364,6 +381,8 @@ def claim_next_waiting(worker: str,
     seen: set = set()
     for row in rows:
         job = _row_to_dict(row)
+        if heavy_only and not job.get("heavy"):
+            continue
         key = (str(job.get("kind") or "video"),
                str((job.get("prompt") or "").strip().lower()),
                str(job.get("aspect")), str(job.get("duration")),

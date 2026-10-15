@@ -1258,6 +1258,704 @@ ENTRIES: list[dict] = [
                   "ko behtar banana; aur poori series plan karna. "
                   "Kuch bhi keh kar dekhein!",
     },
+    # ---- generation techniques (wave 2, 2026-10-15) -------------------
+    # Video craft techniques — our own proven production practice.
+    {
+        "id": "tech_camera_vocab",
+        "keywords": ["camera moves", "camera movements",
+                     "types of camera moves", "list of camera moves",
+                     "pan shot", "tilt shot", "crane shot",
+                     "handheld shot", "locked off shot", "static shot",
+                     "whip pan", "rack focus", "camera moves konsi"],
+        "answer": "The working camera vocabulary: PAN turns the "
+                  "camera left/right on a fixed base; TILT tips it "
+                  "up/down; CRANE rises over the scene; HANDHELD "
+                  "adds human micro-shake (urgent, real); a LOCKED "
+                  "OFF shot never moves — the scene moves instead; "
+                  "a WHIP PAN is a fast blurred turn, pure energy; "
+                  "RACK FOCUS travels the sharpness from foreground "
+                  "to background; DOLLY ZOOM pushes in while "
+                  "zooming out, stretching space (the vertigo "
+                  "shot). Name ONE per shot — two moves at once "
+                  "usually means neither lands.",
+    },
+    {
+        "id": "tech_shot_sequence",
+        "keywords": ["shot sequence", "shot order", "order of shots",
+                     "coverage", "wide medium close", "shot sizes",
+                     "shots kaise lagaye"],
+        "answer": "Plan shots as a ladder: WIDE shows the place, "
+                  "MEDIUM puts the person inside it, CLOSE-UP lands "
+                  "the feeling or the detail. That wide-to-close "
+                  "progression is the classic coverage order — "
+                  "reverse it (detail first, place revealed last) "
+                  "for mystery. Keep screen direction steady: a "
+                  "subject travelling left-to-right should keep "
+                  "travelling that way in the next shot, or the "
+                  "viewer feels the world flip. In a series, each "
+                  "part is one rung of the ladder.",
+    },
+    {
+        "id": "tech_transitions",
+        "keywords": ["transition", "transitions between shots",
+                     "match cut", "cut from one shot",
+                     "transition kaise"],
+        "answer": "A cut feels smooth when something carries across "
+                  "it: MOTION (the subject exits right and enters "
+                  "right in the next shot), SHAPE (a match cut — a "
+                  "round moon becomes a round wheel), SOUND (the "
+                  "next scene's sound arrives a breath before its "
+                  "picture), or a WIPE (the subject passes the lens "
+                  "and its darkness covers the change). In a series, "
+                  "end a part mid-motion and open the next part on "
+                  "the same motion — the join disappears.",
+    },
+    {
+        "id": "tech_first_frame",
+        "keywords": ["first frame", "opening frame",
+                     "first frame important",
+                     "video ki pehli frame"],
+        "answer": "A generator builds the whole clip outward from "
+                  "its opening frame — so describe frame one like a "
+                  "finished photograph: subject placed, light set, "
+                  "the action already beginning. 'A man in a city' "
+                  "drifts anywhere; 'low angle: a fisherman "
+                  "silhouetted against a huge orange sunrise, "
+                  "mid-cast' anchors everything that follows. In a "
+                  "series, open each part near where the last part "
+                  "closed.",
+    },
+    {
+        "id": "tech_motion_physics",
+        "keywords": ["realistic motion", "physics in video",
+                     "unnatural movement", "motion looks fake",
+                     "looks unnatural", "weight in motion",
+                     "harkat ajeeb lagti"],
+        "answer": "Motion reads fake when WEIGHT is missing. Give "
+                  "actions their consequences: heavy steps land "
+                  "with dust and a small body dip, fabric and hair "
+                  "lag a beat behind the body, water splashes "
+                  "outward and falls back, a runner leans into the "
+                  "turn. Name the effect, not just the action — "
+                  "'stomps, dust bursting at every step' beats "
+                  "'walks heavily' every time.",
+    },
+    {
+        "id": "tech_hands_faces",
+        "keywords": ["hands look wrong", "extra fingers",
+                     "weird hands", "bad hands", "face artifacts",
+                     "hands in video", "haath galat bante"],
+        "answer": "Hands and distant faces are where generators "
+                  "slip first — extra fingers, melting features. "
+                  "Work around it: keep hands busy with a prop "
+                  "(holding a cup, gripping a rail), prefer medium "
+                  "shots over tiny crowd faces, avoid counting "
+                  "gestures and intricate hand choreography, and "
+                  "make important faces LARGE in the frame. If a "
+                  "hand moment truly matters, make it the shot "
+                  "itself — big, simple and slow.",
+    },
+    {
+        "id": "tech_environment_life",
+        "keywords": ["background looks dead", "lifeless scene",
+                     "scene feels empty", "background movement",
+                     "secondary motion", "mahol zinda"],
+        "answer": "A scene feels alive when the BACKGROUND moves "
+                  "too: leaves trembling, distant traffic passing, "
+                  "smoke curling, curtains breathing. This "
+                  "secondary motion is the difference between a "
+                  "filmed place and a painted backdrop. Add ONE "
+                  "background layer to the prompt ('a busy market "
+                  "behind her, flags fluttering') — cheap words, "
+                  "huge realism. Two layers at most, or the "
+                  "subject gets lost in its own world.",
+    },
+    {
+        "id": "tech_prompt_length",
+        "keywords": ["prompt too long", "how long should a prompt be",
+                     "prompt length", "prompt kitna lamba",
+                     "lamba prompt", "short prompt or long"],
+        "answer": "Aim for a few tight sentences per shot. Too "
+                  "short and the model guesses — and guesses bland. "
+                  "Too long and the later clauses quietly get "
+                  "dropped: the EARLIEST strong instruction wins, "
+                  "so front-load the subject and the action and "
+                  "put decoration last. If a detail truly matters "
+                  "it belongs in the first two sentences; "
+                  "everything after that is seasoning.",
+    },
+    {
+        "id": "tech_specifics",
+        "keywords": ["too many adjectives", "vague prompt",
+                     "generic words", "prompt is not working",
+                     "too vague", "adjectives in prompt"],
+        "answer": "Adjectives are the weakest words in a prompt: "
+                  "'epic, beautiful, amazing, stunning' tell the "
+                  "model almost nothing it can draw. Trade each one "
+                  "for something observable — not 'a beautiful "
+                  "garden' but 'a garden of red roses and white "
+                  "jasmine after rain, wet petals shining'. "
+                  "Concrete nouns and strong verbs are what "
+                  "generators actually obey.",
+    },
+    {
+        "id": "tech_fastlane",
+        "keywords": ["draft first", "test before final",
+                     "iterate the prompt", "quick draft",
+                     "save time rendering", "pehle draft"],
+        "answer": "Professionals draft cheap and finish big: make "
+                  "the short, rough version FIRST to lock the idea, "
+                  "the framing and the words — then spend the real "
+                  "render only on the version that already works. "
+                  "Nine out of ten failures are prompt failures, "
+                  "and a draft exposes them at a fraction of the "
+                  "cost. Iterate the TEXT, not the render.",
+    },
+    {
+        "id": "tech_qa_checklist",
+        "keywords": ["check my video", "quality check", "qa check",
+                     "verify the output", "frame check",
+                     "galti kaise check", "output check karna"],
+        "answer": "Before sharing any generation, check three "
+                  "frames: the FIRST (does it open on the "
+                  "promise?), a MIDDLE one (subject right? flags, "
+                  "text and hands correct?) and the LAST (does it "
+                  "end clean?). Then watch once through for motion "
+                  "and sound. A wrong detail earns ONE regeneration "
+                  "with the fix spelled out more explicitly; still "
+                  "wrong, change the idea — not your luck. A wrong "
+                  "video never ships.",
+    },
+    {
+        "id": "tech_seed_variation",
+        "keywords": ["try variations", "different version same scene",
+                     "variation of a scene", "seed change karke",
+                     "same scene new version"],
+        "answer": "To explore a scene without losing it, keep every "
+                  "word of the prompt and change ONLY the seed — "
+                  "you get sibling versions of the same idea and "
+                  "the best one wins. To stay consistent, do the "
+                  "opposite: keep the seed locked. And change one "
+                  "variable at a time — alter the words AND the "
+                  "seed together and you can never tell what fixed "
+                  "(or broke) the result.",
+    },
+    {
+        "id": "tech_color_script",
+        "keywords": ["color script", "colour script",
+                     "what is a color script",
+                     "palette across scenes",
+                     "colors across a series", "rangon ki planning"],
+        "answer": "A color script plans the palette ACROSS a whole "
+                  "story before you generate: warm golds while "
+                  "things go well, cold blues when danger comes, "
+                  "and one accent color that belongs to your hero. "
+                  "It is how separate clips start feeling like one "
+                  "film. Decide the journey of colors first — then "
+                  "each prompt just names its scene's stop on that "
+                  "journey.",
+    },
+    {
+        "id": "tech_vertical_composition",
+        "keywords": ["vertical framing", "compose for vertical",
+                     "9:16 composition", "vertical video composition",
+                     "portrait framing"],
+        "answer": "Compose FOR the tall frame instead of cropping a "
+                  "wide idea into it: stack the world vertically "
+                  "(foreground low, subject in the middle, sky or "
+                  "ceiling high), keep the hero near the center "
+                  "column where phone viewers actually look, and "
+                  "leave a little room above heads. Wide group "
+                  "scenes fight the tall frame; single heroes and "
+                  "tall subjects — towers, waterfalls, giants — "
+                  "love it.",
+    },
+    # ---- image craft techniques --------------------------------------
+    {
+        "id": "img_prompt_basics",
+        "keywords": ["image prompt", "good image prompt",
+                     "photo prompt", "tasveer ka prompt",
+                     "tasveer ka prompt kaise",
+                     "prompt for an image", "still image prompt"],
+        "answer": "A still image wants MORE frozen detail than a "
+                  "video prompt, not less: subject + specific "
+                  "details (materials, textures, small props) + "
+                  "environment + light + the photographic look "
+                  "(lens, film, editorial). Nothing moves, so every "
+                  "word should describe what can be SEEN in one "
+                  "frame. One subject described richly beats three "
+                  "subjects described thinly.",
+    },
+    {
+        "id": "img_lens_language",
+        "keywords": ["lens words", "portrait lens", "macro photo",
+                     "focal length", "telephoto look",
+                     "which lens words"],
+        "answer": "Borrow the photographer's lens words — they are "
+                  "precise style instructions: an 85mm-style lens "
+                  "flatters portraits with creamy background blur; "
+                  "a 24mm wide lens dramatizes spaces and "
+                  "stretches edges; MACRO opens tiny worlds in huge "
+                  "detail (insects, droplets, textures); TELEPHOTO "
+                  "compresses distance, stacking layers like "
+                  "mountains piled behind a city. Name the lens, "
+                  "get the look.",
+    },
+    {
+        "id": "img_negative_space",
+        "keywords": ["negative space", "leading lines",
+                     "photo composition", "symmetry in a photo",
+                     "minimal photo"],
+        "answer": "Three composition tools beyond the rule of "
+                  "thirds: LEADING LINES — roads, rails and rivers "
+                  "that walk the viewer's eye to your subject; "
+                  "NEGATIVE SPACE — deliberate emptiness around the "
+                  "subject, which makes it feel important, calm "
+                  "and expensive; and SYMMETRY — a mirrored frame "
+                  "for order, ceremony or unease. Pick ONE per "
+                  "image: composition tricks fight each other too.",
+    },
+    {
+        "id": "img_text_flags",
+        "keywords": ["text in image", "logo in image",
+                     "flag in image", "words in image",
+                     "image have text",
+                     "spelling in image", "jhanda image mein"],
+        "answer": "Images hold text and emblems better than video "
+                  "does — but only when you SPELL the job: quote "
+                  "the exact words, keep them few and big, and "
+                  "describe flags element by element (field color, "
+                  "stripes, the symbol and where it sits). 'A flag "
+                  "of Pakistan' is a wish; 'dark green flag, white "
+                  "stripe at the hoist, white crescent and star in "
+                  "the center' is an instruction. Verify the "
+                  "result before you share it.",
+    },
+    {
+        "id": "img_product_shot",
+        "keywords": ["product photo", "good product photo",
+                     "product shot", "product image",
+                     "ecommerce photo", "product ki photo"],
+        "answer": "Product shots follow a recipe: ONE hero product, "
+                  "large and near-centered; a clean or softly "
+                  "blurred background that cannot compete; a "
+                  "surface with a gentle reflection under it; "
+                  "softbox-style light from one side so materials "
+                  "read (matte, glossy, metallic); and the label "
+                  "facing the camera, spelled exactly. Lifestyle "
+                  "clutter belongs in a second image, not in the "
+                  "hero.",
+    },
+    {
+        "id": "img_portrait",
+        "keywords": ["portrait tips", "portrait photo",
+                     "good portrait", "face photo tips",
+                     "insaan ki photo"],
+        "answer": "Portraits live or die on eyes and light: put the "
+                  "eyes in the top third and in sharp focus, ask "
+                  "for catchlights (the tiny sparkle in the eyes) "
+                  "and soft window-style light, and describe skin "
+                  "as REAL — 'natural skin texture, fine detail' — "
+                  "so it never turns plastic. A shallow, "
+                  "portrait-lens blur behind the face flatters "
+                  "almost everyone.",
+    },
+    {
+        "id": "img_consistency",
+        "keywords": ["consistent images", "same character in images",
+                     "images of the same character",
+                     "image consistency", "images mein consistency",
+                     "images mein consistency kaise",
+                     "hero image first"],
+        "answer": "For a SET of images with one character, generate "
+                  "the hero image first — the clearest, most "
+                  "detailed portrait — then reuse its EXACT subject "
+                  "description, the same style and the same seed "
+                  "in every following prompt, changing only the "
+                  "scene. Without a reference image, the description "
+                  "IS the anchor: never paraphrase it between "
+                  "images, because paraphrases drift.",
+    },
+    {
+        "id": "img_detail_level",
+        "keywords": ["image looks blurry", "sharper image",
+                     "more detail in image", "image detail",
+                     "tasveer saaf kaise"],
+        "answer": "Blur and mush usually mean the prompt spread its "
+                  "detail too thin: too many subjects, tiny faces "
+                  "in a crowd, text too small to draw. Concentrate "
+                  "instead: fewer subjects, bigger in frame, "
+                  "detail words attached to the SUBJECT "
+                  "('weathered leather, brass buckles') rather "
+                  "than to the whole scene, and nothing important "
+                  "smaller than a thumbprint in the frame.",
+    },
+    # ---- audio: voice & music techniques ------------------------------
+    {
+        "id": "tts_punctuation",
+        "keywords": ["punctuation in voiceover", "pauses in speech",
+                     "voice pacing", "comma pause",
+                     "speech mein pause"],
+        "answer": "In spoken audio, punctuation IS the acting: "
+                  "commas give a micro-pause, full stops a full "
+                  "breath, an ellipsis (…) a trailing, thinking "
+                  "pause, and a question mark lifts the end of the "
+                  "line. Write the voice script the way it should "
+                  "SOUND — short lines, one thought each — and put "
+                  "a line break wherever the speaker should "
+                  "breathe. If a sentence needs two breaths, it is "
+                  "two sentences.",
+    },
+    {
+        "id": "tts_emphasis",
+        "keywords": ["emphasis in the voice", "add emphasis",
+                     "stress a word", "voice emphasis",
+                     "zor de kar bolna"],
+        "answer": "To make one word land, do not shout — set it up: "
+                  "put the important word at the END of the "
+                  "sentence, or write it in CAPITALS for a firmer "
+                  "stress, and keep capitals rare (one per "
+                  "paragraph) or everything sounds shouted. "
+                  "Structure is the stronger tool: 'We did not "
+                  "lose. We LEARNED.' carries its own emphasis.",
+    },
+    {
+        "id": "tts_numbers",
+        "keywords": ["numbers in voiceover", "voice reads numbers",
+                     "dates in audio", "numbers spoken wrong",
+                     "number kaise bulwaye"],
+        "answer": "A voice reads numbers literally, so write them "
+                  "as you want them HEARD: years as 'twenty "
+                  "twenty-six', big figures in words ('two "
+                  "million'), phone-style numbers digit by digit "
+                  "with spaces, and decimals spelled out ('three "
+                  "point five'). Test the first line before "
+                  "generating a long script — a wrong number means "
+                  "rewriting the text, not the voice.",
+    },
+    {
+        "id": "tts_script_length",
+        "keywords": ["voiceover script", "long audio script",
+                     "script for narration", "words per minute",
+                     "audio script kitna lamba"],
+        "answer": "Spoken English runs about 150 words a minute, "
+                  "so plan scripts by the clock: 30 seconds is "
+                  "roughly 75 words, one minute roughly 150. Keep "
+                  "lines breath-sized (under about twenty words), "
+                  "and for long narrations split the text into "
+                  "parts — an audio series in one voice stays "
+                  "consistent AND lets you fix a single part "
+                  "without redoing everything.",
+    },
+    {
+        "id": "tts_voice_casting",
+        "keywords": ["voice for a trailer", "voice casting",
+                     "best voice for narration", "voice for stories",
+                     "trailer ke liye konsi awaaz"],
+        "answer": "Cast the voice like an actor: deep Michael for "
+                  "trailers and big announcements, warm Ava for "
+                  "stories and friendly narration, Emma when it "
+                  "should feel classy and precise, George for "
+                  "serious tales, Sky for young energetic social "
+                  "clips, Adam for casual everyday talk. Match the "
+                  "voice to the JOB first; your personal favorite "
+                  "comes second.",
+    },
+    {
+        "id": "music_formula",
+        "keywords": ["describe the music", "music prompt words",
+                     "music description", "how to describe music",
+                     "music words", "music kaise describe"],
+        "answer": "Describe any music — a video's bed or a music "
+                  "request — with four ingredients: GENRE "
+                  "(cinematic orchestra, lo-fi, folk), INSTRUMENTS "
+                  "(soft piano, heavy drums, strings), MOOD "
+                  "(peaceful, tense, triumphant) and TEMPO "
+                  "(slow and spacious, driving and urgent). 'Sad "
+                  "music' is a wish; 'slow solo piano, sparse and "
+                  "melancholic, lots of space between the notes' "
+                  "is a recipe a generator can actually cook.",
+    },
+    {
+        "id": "music_tempo",
+        "keywords": ["music tempo", "music energy",
+                     "music build up", "fast music slow music",
+                     "tempo kya rakhe"],
+        "answer": "Tempo is the heartbeat of a clip: slow and "
+                  "spacious for awe, grief and luxury; a steady "
+                  "pulse for journeys and work; fast and driving "
+                  "for chases, sports and celebration. For anything "
+                  "longer than a moment, describe the ARC too — "
+                  "enters quietly under the opening, builds "
+                  "through the middle, resolves on the last frame. "
+                  "Music that starts at full energy has nowhere "
+                  "to go.",
+    },
+    {
+        "id": "sound_ambience",
+        "keywords": ["sound effects", "ambience sounds",
+                     "background sounds", "sfx in video",
+                     "environment sounds", "mahol ki awaazein"],
+        "answer": "Music tells the FEELING; ambience tells the "
+                  "PLACE. Name the environment's own sounds "
+                  "alongside a scene — rain on a tin roof, a "
+                  "market crowd's murmur, café chatter and "
+                  "cutlery, wind through pines. Even tucked "
+                  "quietly under the music, one true ambient layer "
+                  "makes a generated scene feel occupied instead "
+                  "of rendered.",
+    },
+    # ---- Omni Flash techniques (Google Flow's model — technique
+    # Q&A; TOQIX does not run Omni, its craft transfers) -----------------
+    {
+        "id": "omni_what",
+        "keywords": ["omni flash", "what is omni",
+                     "omni flash kya hai", "gemini omni",
+                     "omni model"],
+        "answer": "Omni Flash (Gemini Omni) is Google's video model "
+                  "inside Flow — unusual because it both GENERATES "
+                  "clips and EDITS existing video by conversation, "
+                  "with native sound and dialogue. TOQIX does not "
+                  "run it; I teach its techniques because they are "
+                  "the current state of the art, and most of them "
+                  "— restating the subject in full, one camera "
+                  "move, surgical edits — make prompts better on "
+                  "every model, including ours.",
+    },
+    {
+        "id": "omni_settings",
+        "keywords": ["duration and resolution", "omni settings",
+                     "omni duration setting", "omni mein duration",
+                     "settings not prompt"],
+        "answer": "On Omni Flash, length, resolution and frame "
+                  "shape are SETTINGS you pick in the composer — "
+                  "not words inside the prompt. Writing 'make it "
+                  "12 seconds' in the prompt does not change any "
+                  "setting; it only confuses the composition. "
+                  "Clips run 3–10 seconds, shapes are wide 16:9 or "
+                  "tall 9:16 only, and 720p is the native render "
+                  "(upscaling happens afterwards). Set the dials "
+                  "first, then write the prompt for the shot "
+                  "itself.",
+    },
+    {
+        "id": "omni_editing",
+        "keywords": ["omni editing", "edit a video with omni",
+                     "conversational editing",
+                     "keep everything else the same",
+                     "omni se edit"],
+        "answer": "Omni's signature skill is editing by "
+                  "conversation: keep the clip, describe ONE "
+                  "change, and add 'Keep everything else the "
+                  "same.' Short and surgical wins — 'make the sky "
+                  "sunset orange, keep everything else the same' — "
+                  "because long, descriptive edit prompts cause "
+                  "changes you never asked for. One or two changes "
+                  "per turn, check the result, then continue: "
+                  "each turn builds on the last.",
+    },
+    {
+        "id": "omni_dialogue",
+        "keywords": ["dialogue in omni", "dialogue in omni flash",
+                     "omni dialogue",
+                     "speaker says", "omni mein dialogue",
+                     "talking characters omni"],
+        "answer": "Omni writes speech into the clip itself with "
+                  "one syntax: name the speaker and quote the line "
+                  "— Speaker says: 'We have to go, now.' Keep it "
+                  "to at most two short lines per clip and add a "
+                  "delivery note ('whispers', 'flat and tired') — "
+                  "long speeches and overlapping speakers fall "
+                  "apart. Name the music and room sound too, or "
+                  "ask for 'No music, just room tone': silence is "
+                  "also a choice you must state.",
+    },
+    {
+        "id": "omni_single_shot",
+        "keywords": ["omni invents cuts", "inventing cuts",
+                     "single continuous shot",
+                     "no scene cuts", "omni one shot"],
+        "answer": "Left alone, Omni likes to direct: it invents "
+                  "cuts and extra shots. When you want ONE take, "
+                  "say so in the prompt — 'in a single continuous "
+                  "shot, no scene cuts' — and write for a single "
+                  "take: one camera move, one or two action beats, "
+                  "and the subject restated in full, because the "
+                  "model does not carry your last clip's "
+                  "description into a new generation.",
+    },
+    {
+        "id": "omni_references",
+        "keywords": ["reference images", "omni references",
+                     "reference images omni",
+                     "omni character consistency",
+                     "flow characters"],
+        "answer": "In Omni and Flow, consistency comes from "
+                  "references: give each reference ONE job and say "
+                  "the job in words ('the woman in the reference "
+                  "image', 'use this only for the jacket's "
+                  "color'). One to three references is the sweet "
+                  "spot — more makes generations slower and "
+                  "stranger. A voice needs a face: pair a voice "
+                  "with a character image. And for a seamless "
+                  "move, give a first frame AND a last frame and "
+                  "let the model travel between them.",
+    },
+    {
+        "id": "omni_negatives",
+        "keywords": ["omni negative prompt", "negative prompt field",
+                     "omni mein negative", "in-prompt negatives"],
+        "answer": "Omni has NO negative-prompt box — exclusions "
+                  "are plain sentences inside the prompt: 'no "
+                  "on-screen text, no captions, no subtitles', "
+                  "'no dialogue', 'do not show the drawing'. The "
+                  "same honesty applies in reverse: if a sign or "
+                  "title must appear, quote its exact words, or "
+                  "expect invented lettering. On models WITH a "
+                  "negative field (like ours) the field does this "
+                  "job — and the craft of choosing three crisp "
+                  "exclusions is identical.",
+    },
+    {
+        "id": "omni_extend_intent",
+        "keywords": ["omni scene extension", "extend a clip omni",
+                     "omni intent prompting", "omni clip barhana"],
+        "answer": "Two Omni habits worth stealing: (1) EXTEND, "
+                  "don't restart — a good clip can be extended in "
+                  "roughly 10-second steps (up to about 40 "
+                  "seconds), the model reading the previous "
+                  "ending for continuity — the same reason TOQIX "
+                  "series parts open where the last part closed. "
+                  "(2) State INTENT and spend your detail on "
+                  "looks: clear direction plus rich aesthetic "
+                  "guidance beats over-specified physics and "
+                  "facts, which mostly waste the prompt.",
+    },
+    # ---- Seedance & multi-shot technique (ByteDance's closed model
+    # made this grammar famous; TOQIX teaches the craft, honestly) -----
+    {
+        "id": "seed_what",
+        "keywords": ["seedance", "what is seedance",
+                     "seedance kya hai", "bytedance video model"],
+        "answer": "Seedance is ByteDance's top video model family, "
+                  "famous for NATIVE multi-shot storytelling: one "
+                  "prompt can hold two or three real cuts — wide, "
+                  "medium, close-up — with the same subject, style "
+                  "and mood carried across all of them. It is a "
+                  "closed model, so TOQIX does not run it; what "
+                  "we take from it is its prompt grammar, which is "
+                  "public craft and makes our own scenes and "
+                  "series parts sharper.",
+    },
+    {
+        "id": "seed_multishot_structure",
+        "keywords": ["multi-shot prompt", "multi shot prompt",
+                     "multishot structure", "shot 1 shot 2",
+                     "multi shot prompt kaise",
+                     "multi shot kaise likhe"],
+        "answer": "The multi-shot prompt structure used by "
+                  "advanced video models (Seedance made it "
+                  "famous): label the shots — 'Shot 1:', 'Shot "
+                  "2:' — and give EACH shot one primary action, "
+                  "one camera move and its own sound cue, with "
+                  "the character described identically in every "
+                  "shot. On TOQIX the same grammar becomes a "
+                  "series — one shot per part, the same anchor "
+                  "text everywhere — or a 10-second video, which "
+                  "is built as exactly two such shots.",
+    },
+    {
+        "id": "seed_timecodes",
+        "keywords": ["timed segments", "time ranges in prompt",
+                     "0-3s prompt", "timecoded prompt",
+                     "timecode shots"],
+        "answer": "Instead of shot labels, you can pin beats to "
+                  "TIME: '0–3s: close-up, the letter is opened. "
+                  "3–6s: cut to her face, she smiles.' Models with "
+                  "strong instruction-following (Seedance "
+                  "popularized this) honor the ranges — and the "
+                  "discipline helps on any model: it forces you "
+                  "to budget seconds per beat, and a beat that "
+                  "does not fit its seconds gets cut on paper "
+                  "instead of on screen.",
+    },
+    {
+        "id": "seed_camera_literal",
+        "keywords": ["precise camera words", "camera terms literal",
+                     "seedance camera language",
+                     "rack focus technique", "term plus result"],
+        "answer": "Seedance-style prompting treats camera words as "
+                  "LITERAL instructions, not vibes: 'dynamic "
+                  "camera' means nothing to a lens, 'slow "
+                  "dolly-in' means everything. For a niche move, "
+                  "give the term PLUS its visible result — 'rack "
+                  "focus: the foreground leaves blur as the face "
+                  "behind them comes clear' — so even a model "
+                  "that half-knows the term can draw the outcome. "
+                  "One move per shot, and pace it: slow, medium "
+                  "or fast.",
+    },
+    {
+        "id": "seed_shot_size_first",
+        "keywords": ["state the shot size", "shot size up front",
+                     "wide medium close progression",
+                     "shot size first", "framing first"],
+        "answer": "State the shot size UP FRONT in every shot "
+                  "('Close-up: …', 'Wide shot: …') — the model "
+                  "fixes the framing from the first words and "
+                  "stops re-centering mid-take. Across a sequence "
+                  "the classic progression runs wide → medium → "
+                  "close-up, walking the viewer from place to "
+                  "person to feeling. Naming each part's size "
+                  "keeps that ladder deliberate instead of "
+                  "random.",
+    },
+    {
+        "id": "seed_continuity_cuts",
+        "keywords": ["continuity across cuts",
+                     "consistent across shots",
+                     "same grade every shot",
+                     "cuts mein continuity"],
+        "answer": "Multi-shot work stays believable when the "
+                  "INVARIANTS are repeated, not assumed: the same "
+                  "character description word-for-word, the same "
+                  "wardrobe, the same palette and lighting "
+                  "direction in every shot — with the global "
+                  "settings stated once at the top, before Shot "
+                  "1. Anything first mentioned in shot three "
+                  "cannot retroactively fix shot one. This is "
+                  "exactly the anchor a TOQIX series locks for "
+                  "you automatically.",
+    },
+    {
+        "id": "seed_director_brief",
+        "keywords": ["director's shot brief", "shot brief structure",
+                     "directors brief order", "brief style prompt",
+                     "prompt order seedance"],
+        "answer": "Write the prompt as a director's SHOT BRIEF, in "
+                  "this order: (1) subject + one action — the "
+                  "kinetic core everything hangs on; (2) camera — "
+                  "size, move, angle; (3) scene, style and "
+                  "lighting; (4) sound — a cue or a quoted line; "
+                  "(5) constraints LAST, as guardrails. Short and "
+                  "structured beats long and poetic: a model "
+                  "honors its earliest strong instruction, so "
+                  "the order IS the priority list.",
+    },
+    {
+        "id": "seed_onetake_vs_cuts",
+        "keywords": ["one take or cuts", "single take vs cuts",
+                     "cuts ya one take", "no cuts prompt",
+                     "continuous take seedance"],
+        "answer": "Decide the grammar before writing: CUTS "
+                  "(labelled shots) tell a story in angles and "
+                  "beats; a ONE-TAKE ('single continuous take, no "
+                  "cuts') sells immersion and one unbroken move. "
+                  "Asking for neither gets you the model's "
+                  "default habits — drifting between the two. "
+                  "State the choice in the first line and repeat "
+                  "it in the constraints at the end.",
+    },
 ]
 
 

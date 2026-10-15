@@ -90,6 +90,19 @@ def init_db() -> None:
             )
             """
         )
+        # Control Room tracking chips: every manager / scheduled
+        # system upserts one row per component when it runs, so the
+        # private /control dashboard can show who is alive.
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS heartbeats (
+                component TEXT PRIMARY KEY,
+                at        REAL NOT NULL DEFAULT 0,
+                status    TEXT NOT NULL DEFAULT '',
+                detail    TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
         # Migration for databases created before the flywheel fields existed.
         existing = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
         for col, ddl in (
@@ -681,6 +694,93 @@ def list_workers() -> list[dict]:
             "online": (now - last_seen) <= WORKER_ONLINE_SECONDS,
         })
     return workers
+
+
+# ---------------------------------------------------------------------------
+# Control Room — tracking chips (heartbeats) + dashboard aggregates.
+#
+# Managers and scheduled systems check in with upsert_heartbeat()
+# (via POST /api/control/heartbeat, machine key only). The private
+# /control page reads everything back through control_state helpers
+# in the server, assembled from list_heartbeats(), the helpers below
+# and the worker registry.
+# ---------------------------------------------------------------------------
+
+def upsert_heartbeat(component: str, status: str,
+                     detail: str = "") -> dict:
+    """Record one component's check-in (its tracking chip ping)."""
+    component = str(component or "")[:80]
+    status = str(status or "")[:40]
+    detail = str(detail or "")[:500]
+    now = time.time()
+    with _LOCK, _conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO heartbeats (component, at, status, detail)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(component) DO UPDATE SET at = excluded.at,
+                status = excluded.status, detail = excluded.detail
+            """,
+            (component, now, status, detail),
+        )
+    return {"component": component, "at": now,
+            "status": status, "detail": detail}
+
+
+def list_heartbeats() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM heartbeats ORDER BY component").fetchall()
+    return [dict(r) for r in rows]
+
+
+def current_jobs_by_worker() -> dict:
+    """Worker name -> the job it is generating right now (light
+    fields for the control room). The freshest generating job wins
+    when a name somehow holds more than one."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT claimed_by, id, kind, prompt, progress FROM jobs "
+            "WHERE status = 'generating' AND claimed_by IS NOT NULL "
+            "ORDER BY updated_at DESC"
+        ).fetchall()
+    out: dict = {}
+    for r in rows:
+        out.setdefault(r["claimed_by"], {
+            "id": r["id"],
+            "kind": r["kind"] or "video",
+            "prompt": (r["prompt"] or "")[:60],
+            "progress": int(r["progress"] or 0),
+        })
+    return out
+
+
+def control_counts() -> dict:
+    """queue_counts() plus calendar-day done/failed totals — the
+    control room's stat cards."""
+    import datetime
+
+    counts = queue_counts()
+    day_start = datetime.datetime.now().replace(
+        hour=0, minute=0, second=0, microsecond=0).timestamp()
+    with _conn() as conn:
+        done_today = conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE status = 'done' "
+            "AND updated_at >= ?", (day_start,)).fetchone()[0]
+        failed_today = conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE status = 'failed' "
+            "AND updated_at >= ?", (day_start,)).fetchone()[0]
+    counts["done_today"] = int(done_today)
+    counts["failed_today"] = int(failed_today)
+    return counts
+
+
+def chat_jobs_last_24h() -> int:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE kind = 'chat' "
+            "AND created_at > ?", (time.time() - 86400,)).fetchone()
+    return int(row[0])
 
 
 # ---------------------------------------------------------------------------

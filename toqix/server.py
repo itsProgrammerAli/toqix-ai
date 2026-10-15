@@ -22,8 +22,10 @@ import shutil
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi import (FastAPI, File, Form, HTTPException, Request,
+                     UploadFile)
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
+                               RedirectResponse)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -177,6 +179,12 @@ class BanIn(BaseModel):
 
 class FeaturedIn(BaseModel):
     featured: bool
+
+
+class HeartbeatIn(BaseModel):
+    component: str = Field(..., min_length=1, max_length=80)
+    status: str = Field(..., min_length=1, max_length=40)
+    detail: str = Field("", max_length=500)
 
 
 @app.get("/")
@@ -831,6 +839,200 @@ def admin_feature_job(request: Request, job_id: str, body: FeaturedIn):
     if not job:
         raise HTTPException(status_code=404, detail="job not found")
     return jobs.update_job(job_id, featured=1 if body.featured else 0)
+
+
+# ---------------------------------------------------------------------------
+# Control Room — the owner's private live dashboard (/control).
+#
+# Every worker, the fleet manager and the scheduled systems appear
+# there as game-like 2D characters. Access is a single email+password
+# login (owner's main Gmail + a password verified against the salted
+# hash in TOQIX_CONTROL_AUTH — see auth.py). There is NO sign-up:
+# nobody else can ever get in. The page is never linked publicly.
+# ---------------------------------------------------------------------------
+
+_CONTROL_FAILS: dict[str, dict] = {}
+_CONTROL_MAX_FAILS = 5
+_CONTROL_LOCK_SECONDS = 600  # 10 minutes
+
+
+def _control_locked(ip: str) -> bool:
+    rec = _CONTROL_FAILS.get(ip)
+    return bool(rec and rec.get("locked_until", 0) > time.time())
+
+
+def _control_record_fail(ip: str) -> None:
+    rec = _CONTROL_FAILS.setdefault(ip, {"fails": 0, "locked_until": 0.0})
+    rec["fails"] += 1
+    if rec["fails"] >= _CONTROL_MAX_FAILS:
+        rec["locked_until"] = time.time() + _CONTROL_LOCK_SECONDS
+        rec["fails"] = 0
+
+
+def _control_authorized(request: Request) -> bool:
+    return _api_key_ok(request) or auth.control_cookie_ok(
+        request.cookies.get(auth.CONTROL_COOKIE))
+
+
+def _control_login_html(error: str = "") -> str:
+    err = (f'<p class="err">{error}</p>' if error else "")
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TOQIX Control Room — Crew Login</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .login-wrap { min-height: 100vh; display: flex; align-items: center;
+    justify-content: center; padding: 24px 16px; position: relative; z-index: 1; }
+  .login-card { width: min(380px, 94vw); padding: 30px 28px; border-radius: 22px; }
+  .login-card h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: .01em; }
+  .login-card .sub { color: rgba(255,255,255,.55); font-size: 13.5px; margin-bottom: 22px; }
+  .login-card label { display: block; font-size: 12.5px; font-weight: 600;
+    color: rgba(255,255,255,.6); text-transform: uppercase;
+    letter-spacing: .05em; margin: 14px 0 6px; }
+  .login-card input { width: 100%; padding: 12px 14px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.2); background: rgba(0,0,0,.35);
+    color: #fff; font-size: 15px; outline: none; }
+  .login-card input:focus { border-color: rgba(167,139,250,.7); }
+  .login-card button { width: 100%; margin-top: 22px; padding: 13px;
+    border: none; border-radius: 12px; cursor: pointer; font-size: 15px;
+    font-weight: 700; color: #0b0b10;
+    background: linear-gradient(90deg, #a78bfa, #22d3ee); }
+  .login-card button:hover { filter: brightness(1.08); }
+  .err { background: rgba(255,60,60,.14); border: 1px solid rgba(255,60,60,.45);
+    color: #ffb3b3; padding: 10px 12px; border-radius: 10px;
+    font-size: 13.5px; margin: 0 0 6px; }
+  .lock-note { text-align: center; color: rgba(255,255,255,.4);
+    font-size: 12.5px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
+<div class="login-wrap">
+  <form class="login-card glass" method="post" action="/control/login">
+    <h1>&#128225; TOQIX Control Room</h1>
+    <div class="sub">Mission control for the whole fleet. Crew only.</div>
+    """ + err + """
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password"
+           autocomplete="current-password" required>
+    <button type="submit">Enter Control Room</button>
+    <div class="lock-note">Private dashboard &mdash; no sign-up, ever.</div>
+  </form>
+</div>
+</body>
+</html>"""
+
+
+@app.get("/control")
+def control_page(request: Request):
+    """The dashboard itself for a valid control cookie; the crew
+    login page for everyone else."""
+    if auth.control_cookie_ok(request.cookies.get(auth.CONTROL_COOKIE)):
+        return FileResponse(config.WEB_DIR / "control.html")
+    return HTMLResponse(_control_login_html())
+
+
+@app.post("/control/login")
+def control_login(request: Request, email: str = Form(""),
+                  password: str = Form("")):
+    ip = request.client.host if request.client else "?"
+    if _control_locked(ip):
+        return HTMLResponse(
+            _control_login_html(
+                "Too many failed tries — this door is locked for "
+                "10 minutes."),
+            status_code=429)
+    if not auth.verify_control_login(email, password):
+        _control_record_fail(ip)
+        return HTMLResponse(
+            _control_login_html("Wrong email or password."),
+            status_code=401)
+    _CONTROL_FAILS.pop(ip, None)
+    resp = RedirectResponse("/control", status_code=303)
+    resp.set_cookie(auth.CONTROL_COOKIE, auth.make_control_cookie(),
+                    **_cookie_kwargs(auth.CONTROL_SESSION_SECONDS))
+    return resp
+
+
+@app.get("/control/logout")
+def control_logout():
+    resp = RedirectResponse("/control", status_code=303)
+    resp.delete_cookie(auth.CONTROL_COOKIE, path="/")
+    return resp
+
+
+@app.get("/api/control/state")
+def control_state(request: Request):
+    """One JSON snapshot for the control room: workers (joined with
+    the job each is running), queue counts, the activity feed, the
+    tracking-chip heartbeats and the agent tile. Requires the
+    control cookie or the machine API key."""
+    if not _control_authorized(request):
+        raise HTTPException(status_code=401,
+                            detail="control_login_required")
+    now = time.time()
+    registry = jobs.list_workers()
+    current = jobs.current_jobs_by_worker()
+    workers = []
+    for w in registry:
+        name = w["name"]
+        platform = ("kaggle" if name.startswith("kaggle-")
+                    else "colab" if name.startswith("colab-")
+                    else "local")
+        workers.append({
+            "name": name,
+            "platform": platform,
+            "caps": w["caps"],
+            "online": w["online"],
+            "last_seen": w["last_seen"],
+            "last_seen_ago_s": max(0, int(now - w["last_seen"])),
+            "current_job": current.get(name),
+        })
+    feed = [{
+        "id": j["id"],
+        "kind": j.get("kind") or "video",
+        "status": j["status"],
+        "prompt": (j.get("prompt") or "")[:60],
+        "claimed_by": j.get("claimed_by"),
+        "progress": j.get("progress", 0),
+        "updated_at": j.get("updated_at"),
+    } for j in jobs.list_jobs(limit=12, include_chat=True)]
+    heartbeats = {
+        h["component"]: {
+            "at": h["at"],
+            "status": h["status"],
+            "detail": h["detail"],
+            "ago_s": max(0, int(now - h["at"])),
+        } for h in jobs.list_heartbeats()
+    }
+    return {
+        "generated_at": now,
+        "workers": workers,
+        "queue": jobs.control_counts(),
+        "feed": feed,
+        "heartbeats": heartbeats,
+        "agent": {
+            "chat_workers_online": sum(
+                1 for w in registry
+                if w["online"] and "chat" in w["caps"]),
+            "chat_jobs_24h": jobs.chat_jobs_last_24h(),
+        },
+    }
+
+
+@app.post("/api/control/heartbeat")
+def control_heartbeat(request: Request, body: HeartbeatIn):
+    """A tracking-chip check-in from a manager or scheduled system.
+    Machine API key ONLY (the control cookie cannot write these)."""
+    if not _api_key_ok(request):
+        raise HTTPException(status_code=401, detail="api_key_required")
+    hb = jobs.upsert_heartbeat(body.component, body.status, body.detail)
+    return {"ok": True, "heartbeat": hb}
 
 
 @app.exception_handler(HTTPException)

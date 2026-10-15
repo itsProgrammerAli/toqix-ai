@@ -496,4 +496,74 @@ def check_prompt(text: str) -> dict:
     return {"blocked": False, "severity": "", "rule": ""}
 
 
+# ---------------------------------------------------------------------------
+# Control Room login — the private /control dashboard.
+#
+# Exactly ONE account can ever enter: the owner's main Gmail (already
+# ADMIN_EMAILS) plus a password whose salted PBKDF2-HMAC-SHA256 hash
+# lives ONLY in the deployment environment (TOQIX_CONTROL_AUTH,
+# format "salt_hex$hash_hex"). The plaintext password is never stored
+# anywhere — not in the repo, not in the database. There is no
+# registration endpoint: nobody else can sign up, ever. A successful
+# login mints a signed cookie (same HMAC machinery as sessions) with
+# a "control" scope and a 7-day expiry.
+# ---------------------------------------------------------------------------
+
+CONTROL_COOKIE = "toqix_control"
+CONTROL_SESSION_SECONDS = 7 * 24 * 3600  # 7 days
+_CONTROL_ITERATIONS = 200_000
+
+
+def control_auth_configured() -> bool:
+    raw = os.environ.get("TOQIX_CONTROL_AUTH", "")
+    salt_hex, sep, hash_hex = raw.partition("$")
+    if not sep or not salt_hex or not hash_hex:
+        return False
+    try:
+        bytes.fromhex(salt_hex)
+        bytes.fromhex(hash_hex)
+    except ValueError:
+        return False
+    return True
+
+
+def control_password_hash(password: str,
+                          salt: bytes | None = None) -> str:
+    """Build a TOQIX_CONTROL_AUTH value ("salt_hex$hash_hex") for a
+    password. Used by the one-time setup and by tests (which pass
+    their own throwaway password) — never called at runtime."""
+    salt = salt or secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"),
+                             salt, _CONTROL_ITERATIONS)
+    return salt.hex() + "$" + dk.hex()
+
+
+def verify_control_login(email: str, password: str) -> bool:
+    """True only for the owner's main email + the password matching
+    the TOQIX_CONTROL_AUTH hash. Constant-time digest comparison."""
+    if (email or "").strip().lower() not in ADMIN_EMAILS:
+        return False
+    raw = os.environ.get("TOQIX_CONTROL_AUTH", "")
+    salt_hex, sep, hash_hex = raw.partition("$")
+    if not sep or not salt_hex or not hash_hex:
+        return False
+    try:
+        salt = bytes.fromhex(salt_hex)
+    except ValueError:
+        return False
+    dk = hashlib.pbkdf2_hmac("sha256", (password or "").encode("utf-8"),
+                             salt, _CONTROL_ITERATIONS)
+    return hmac.compare_digest(dk.hex(), hash_hex)
+
+
+def make_control_cookie() -> str:
+    return _make_token({"scope": "control",
+                        "exp": time.time() + CONTROL_SESSION_SECONDS})
+
+
+def control_cookie_ok(cookie_value: str | None) -> bool:
+    data = _read_token(cookie_value)
+    return bool(data and data.get("scope") == "control")
+
+
 init_auth_db()

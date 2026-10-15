@@ -40,50 +40,133 @@
     border-color: rgba(167,139,250,.65); color: #fff; }
   .camhint { font-size: 11.5px; color: rgba(255,255,255,.42); margin-left: auto; }
 
-  /* ---------- the floor: viewport + world ---------- */
+  /* ---------- the room: viewport + world ---------- */
   #viewport { position: relative; overflow: hidden; border-radius: 14px; aspect-ratio: 16 / 9;
-    background: linear-gradient(180deg, #151a2e 0%, #101322 52%, #0c0e19 100%);
-    border: 1px solid rgba(255,255,255,.09); }
+    background: #0d1420; border: 1px solid rgba(255,255,255,.09); }
   #world { position: absolute; left: 0; top: 0; width: 1600px; height: 900px;
     transform-origin: 0 0; will-change: transform; }
   .vig { position: absolute; inset: 0; pointer-events: none; z-index: 5; border-radius: 14px;
     box-shadow: inset 0 0 110px rgba(0,0,0,.5); }
-  .wall { position: absolute; left: 0; top: 0; width: 1600px; height: 152px;
-    background: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0));
-    border-bottom: 2px solid rgba(255,255,255,.07); }
-  .floorgrid { position: absolute; left: 0; top: 152px; width: 1600px; height: 748px;
+
+  /* ceiling strip + hanging lamps */
+  .ceiling { position: absolute; left: 0; top: 0; width: 1600px; height: 54px; z-index: 3;
+    background: linear-gradient(180deg, #232d3a, #141c26);
+    border-bottom: 3px solid rgba(0,0,0,.45); box-shadow: 0 2px 0 rgba(255,255,255,.05); }
+  .lamp { position: absolute; top: 0; width: 10px; height: 26px; background: #39424f; z-index: 4; }
+  .lamp::before { content: ""; position: absolute; left: 50%; bottom: -13px; transform: translateX(-50%);
+    width: 54px; height: 16px; background: linear-gradient(180deg, #4a5568, #2c3644);
+    clip-path: polygon(28% 0, 72% 0, 100% 100%, 0 100%); }
+  .lamp::after { content: ""; position: absolute; left: 50%; top: 34px; transform: translateX(-50%);
+    width: 240px; height: 150px; pointer-events: none;
+    background: linear-gradient(180deg, rgba(255,232,175,.13), rgba(255,232,175,0) 78%);
+    clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%); }
+  .lamp i { position: absolute; left: 50%; bottom: -17px; transform: translateX(-50%);
+    width: 12px; height: 12px; border-radius: 50%; background: #ffe9b0;
+    box-shadow: 0 0 18px 6px rgba(255,226,150,.55); }
+
+  /* back wall: panels, server-rack windows, pipe run */
+  .wall { position: absolute; left: 0; top: 54px; width: 1600px; height: 446px; z-index: 1;
     background:
-      repeating-linear-gradient(0deg, rgba(255,255,255,.026) 0 2px, transparent 2px 74px),
-      repeating-linear-gradient(90deg, rgba(255,255,255,.026) 0 2px, transparent 2px 80px); }
-  .zone-label { position: absolute; font-size: 21px; font-weight: 800; letter-spacing: .16em;
-    color: rgba(255,255,255,.42); white-space: nowrap; }
+      repeating-linear-gradient(90deg, rgba(255,255,255,.045) 0 2px, transparent 2px 200px),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 2px, transparent 2px 148px),
+      linear-gradient(180deg, #26424e 0%, #1d333f 55%, #16262f 100%); }
+  .rackwin { position: absolute; top: 148px; height: 216px; z-index: 2; border-radius: 12px;
+    border: 3px solid #3d4c5c; overflow: hidden;
+    background:
+      repeating-linear-gradient(0deg, rgba(130,210,255,.07) 0 24px, rgba(0,0,0,.28) 24px 29px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 92px),
+      linear-gradient(180deg, #0e1e2e, #081423);
+    box-shadow: inset 0 0 34px rgba(0,0,0,.55), 0 3px 0 rgba(0,0,0,.3); }
+  .rackwin::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,0) 42%); }
+  .rlight { position: absolute; width: 7px; height: 7px; border-radius: 50%; z-index: 2;
+    background: #35e0a1; box-shadow: 0 0 7px #35e0a1; animation: rblink 2.6s ease-in-out infinite; }
+  .rlight.amber { background: #f5b544; box-shadow: 0 0 7px #f5b544; }
+  .rlight.red { background: #ff5f5f; box-shadow: 0 0 7px #ff5f5f; }
+  @keyframes rblink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+  .wallpipe { position: absolute; left: 0; top: 486px; width: 1600px; height: 14px; z-index: 2;
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,.35) 0 6px, transparent 6px 190px),
+      linear-gradient(180deg, #5a6a78, #33414e 60%, #232f3a);
+    border-top: 1px solid rgba(255,255,255,.14); border-bottom: 2px solid rgba(0,0,0,.4); }
+
+  /* floor: warm planks the characters stand on */
+  .floor { position: absolute; left: 0; top: 500px; width: 1600px; height: 400px; z-index: 1;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 3px, transparent 3px 64px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,.13) 0 2px, transparent 2px 210px),
+      linear-gradient(180deg, #54402e 0%, #453325 34%, #37281d 70%, #2b1f17 100%);
+    box-shadow: inset 0 14px 24px -12px rgba(0,0,0,.55); }
+
+  .zone-label { position: absolute; font-size: 19px; font-weight: 800; letter-spacing: .16em;
+    color: #ffe9c4; white-space: nowrap; background: rgba(20,16,10,.72);
+    border: 2px solid rgba(255,214,150,.4); padding: 5px 16px; border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.35); }
   .zone-tag { position: absolute; font-size: 18px; font-weight: 800; letter-spacing: .14em;
-    color: rgba(255,255,255,.6); white-space: nowrap; }
+    color: rgba(255,255,255,.72); white-space: nowrap; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
 
   .board { position: absolute; left: 560px; top: 20px; width: 480px; height: 106px; z-index: 40;
-    border-radius: 12px; background: linear-gradient(180deg, #0e1730, #0a1020);
-    border: 2px solid rgba(87,230,201,.35); box-shadow: 0 0 26px rgba(87,230,201,.12);
+    border-radius: 12px; background: linear-gradient(180deg, #0c1a2e, #081020);
+    border: 3px solid #3d5a68; box-shadow: 0 0 26px rgba(87,230,201,.14), inset 0 0 22px rgba(20,80,90,.35);
     padding: 12px 18px; box-sizing: border-box; }
+  .board::after { content: ""; position: absolute; inset: 0; border-radius: 9px; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.028) 0 2px, transparent 2px 5px); }
   .board h4 { margin: 0 0 8px; font-size: 19px; letter-spacing: .2em; color: #57e6c9; }
   .board .blines i { display: block; height: 6px; border-radius: 3px; margin-top: 6px;
     background: linear-gradient(90deg, rgba(87,230,201,.75), rgba(34,211,238,.25)); }
   .board .board-sub { margin-top: 9px; font-size: 11.5px; letter-spacing: .22em; color: rgba(255,255,255,.4); }
 
+  /* QUEUE = task board + crates (left); DELIVERED = outbox conveyor (right) */
   .shelf { position: absolute; width: 180px; height: 168px; top: 392px; z-index: 60; }
   .shelf.q { left: 36px; } .shelf.o { left: 1384px; }
-  .shelf-back { position: absolute; inset: 0; border-radius: 12px;
-    background: rgba(255,255,255,.05); border: 1.5px solid rgba(255,255,255,.11); }
-  .shelf-board { position: absolute; left: 8px; right: 8px; bottom: 34px; height: 8px;
-    border-radius: 4px; background: #3a4062; }
+  .shelf-back { position: absolute; inset: 0; border-radius: 10px; }
+  .shelf.q .shelf-back {
+    background:
+      radial-gradient(circle at 18px 16px, rgba(0,0,0,.2) 2.5px, transparent 3.5px),
+      radial-gradient(circle at 162px 16px, rgba(0,0,0,.2) 2.5px, transparent 3.5px),
+      repeating-linear-gradient(0deg, rgba(0,0,0,.07) 0 2px, transparent 2px 30px),
+      linear-gradient(180deg, #7a5a36, #66482a);
+    border: 3px solid #4e3519; box-shadow: inset 0 0 24px rgba(0,0,0,.3); }
+  .shelf.o .shelf-back { background: linear-gradient(180deg, #3a4356, #2b3247);
+    border: 3px solid #232838; box-shadow: inset 0 0 24px rgba(0,0,0,.35); }
+  .shelf-board { position: absolute; left: 8px; right: 8px; bottom: 34px; height: 10px;
+    border-radius: 4px; }
+  .shelf.q .shelf-board { background: #8a653c; border: 1.5px solid #54380f;
+    box-shadow: 0 3px 0 rgba(0,0,0,.3); }
+  .shelf.o .shelf-board {
+    background: repeating-linear-gradient(90deg, #59637c 0 14px, #39415a 14px 28px);
+    border: 1.5px solid #232838; border-top: 3px solid rgba(53,224,161,.55); }
   .shelf .zone-tag { left: 50%; transform: translateX(-50%); bottom: -32px; }
   #qboxes { position: absolute; left: 14px; bottom: 42px; width: 152px;
     display: flex; flex-wrap: wrap-reverse; gap: 5px; }
 
+  /* REST corner: couch, beanbags, plant */
   .restzone { position: absolute; left: 24px; top: 624px; width: 420px; height: 208px; z-index: 30;
-    border-radius: 18px; background: rgba(88,72,180,.1); border: 1.5px dashed rgba(167,139,250,.32); }
+    border-radius: 18px;
+    background: radial-gradient(ellipse at 50% 92%, rgba(255,170,90,.13), rgba(30,20,40,.10) 72%);
+    border: 1.5px dashed rgba(255,190,120,.35); }
   .restzone .zone-tag { left: 14px; top: 8px; font-size: 16px; }
   .moon { position: absolute; right: 26px; top: 10px; width: 34px; height: 34px; border-radius: 50%;
     background: transparent; box-shadow: 9px 5px 0 0 rgba(217,220,255,.85); transform: rotate(-18deg); }
+  .couch { position: absolute; left: 84px; top: 56px; width: 252px; height: 96px; }
+  .couch .cback { position: absolute; left: 0; top: 0; width: 252px; height: 56px;
+    border-radius: 16px 16px 8px 8px; background: linear-gradient(180deg, #8a4a56, #713c47);
+    border: 2px solid rgba(0,0,0,.25); box-sizing: border-box; }
+  .couch .cseat { position: absolute; left: 10px; top: 44px; width: 232px; height: 30px;
+    border-radius: 10px; background: linear-gradient(180deg, #9c5563, #7d434f);
+    border: 2px solid rgba(0,0,0,.22); box-sizing: border-box; }
+  .couch .carm { position: absolute; top: 30px; width: 26px; height: 52px; border-radius: 10px;
+    background: #7d434f; border: 2px solid rgba(0,0,0,.22); box-sizing: border-box; }
+  .couch .carm.l { left: -6px; } .couch .carm.r { right: -6px; }
+  .plant { position: absolute; right: 28px; bottom: 10px; width: 40px; height: 64px; }
+  .plant .pot { position: absolute; bottom: 0; left: 6px; width: 28px; height: 24px;
+    background: linear-gradient(180deg, #b56545, #8f4c30);
+    clip-path: polygon(0 0, 100% 0, 84% 100%, 16% 100%); }
+  .plant .leaf { position: absolute; bottom: 20px; left: 50%; width: 13px; height: 30px;
+    border-radius: 50%; background: #4f9e57; transform-origin: 50% 100%; }
+  .plant .leaf.l1 { transform: translateX(-50%) rotate(-32deg); }
+  .plant .leaf.l2 { transform: translateX(-50%); height: 36px; background: #5cb567; }
+  .plant .leaf.l3 { transform: translateX(-50%) rotate(32deg); }
   .bean { position: absolute; border-radius: 50%; }
   .bean.b1 { left: 26px; bottom: 14px; width: 76px; height: 30px; background: rgba(167,139,250,.32); }
   .bean.b2 { left: 128px; bottom: 10px; width: 90px; height: 34px; background: rgba(34,211,238,.25); }
@@ -92,44 +175,64 @@
   #command, #workers, #systems, #fx, #actors { position: absolute; inset: 0; }
   #actors { pointer-events: none; }
   #actors .actor { pointer-events: auto; cursor: pointer; }
-  .console { position: absolute; left: 596px; top: 204px; width: 128px; height: 62px; z-index: 1400; }
-  .console-screen { width: 66px; height: 42px; margin: 0 auto; border-radius: 6px;
-    background: #0d1430; border: 2px solid rgba(87,230,201,.5); padding-top: 2px; box-sizing: border-box; }
+  /* manager's console desk: twin monitors on a wooden desk */
+  .console { position: absolute; left: 566px; top: 196px; width: 188px; height: 76px; z-index: 1400; }
+  .cscreens { display: flex; gap: 8px; justify-content: center; }
+  .console-screen { width: 64px; height: 44px; border-radius: 6px;
+    background: #0d1830; border: 2px solid rgba(87,230,201,.55); padding-top: 2px;
+    box-sizing: border-box; box-shadow: 0 0 12px rgba(87,230,201,.18); }
   .console-screen i { display: block; height: 4px; margin: 6px 9px 0; border-radius: 2px;
     background: rgba(87,230,201,.55); }
   .console-screen i:nth-child(2) { margin-right: 22px; }
   .console-screen i:nth-child(3) { margin-right: 15px; }
-  .console-desk { height: 12px; margin-top: 3px; border-radius: 6px; background: #1d2338;
-    border: 1.5px solid rgba(255,255,255,.16); }
+  .console-desk { height: 14px; margin-top: 4px; border-radius: 6px;
+    background: linear-gradient(180deg, #5d4630, #463322);
+    border: 1.5px solid rgba(0,0,0,.4); box-shadow: 0 3px 0 rgba(0,0,0,.3); }
+  /* wizard's portal: a glowing arch in the corner */
   .portal { position: absolute; left: 1428px; top: 148px; width: 104px; height: 152px; z-index: 300;
-    border-radius: 50%; border: 3px solid rgba(167,139,250,.55);
+    border-radius: 50%; border: 4px solid rgba(150,120,220,.75);
+    background: radial-gradient(ellipse at center, rgba(167,139,250,.26),
+      rgba(80,50,160,.12) 60%, rgba(40,20,90,.05));
     box-shadow: 0 0 34px rgba(167,139,250,.35), inset 0 0 34px rgba(167,139,250,.25);
-    animation: portalPulse 3.2s ease-in-out infinite; }
+    animation: portalPulse 3.2s ease-in-out infinite; overflow: hidden; }
+  .portal::before { content: ""; position: absolute; inset: 10px; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0 40deg, rgba(200,170,255,.35) 60deg,
+      transparent 110deg, rgba(200,170,255,.22) 200deg, transparent 260deg);
+    animation: spin 9s linear infinite; }
   @keyframes portalPulse { 0%, 100% { box-shadow: 0 0 22px rgba(167,139,250,.25), inset 0 0 22px rgba(167,139,250,.18); }
     50% { box-shadow: 0 0 42px rgba(167,139,250,.5), inset 0 0 40px rgba(167,139,250,.32); } }
+  /* SYSTEMS BAY = the room's front ledge */
   .bay { position: absolute; left: 0; top: 836px; width: 1600px; height: 64px;
-    background: rgba(255,255,255,.045); border-top: 1.5px solid rgba(255,255,255,.09); }
+    background: linear-gradient(180deg, #4b3626 0, #33241a 22%, #20150e 100%);
+    border-top: 3px solid rgba(255,196,130,.4); box-shadow: 0 -6px 14px rgba(0,0,0,.35); }
   .baytag { left: 800px; top: 841px; transform: translateX(-50%); font-size: 13.5px; z-index: 20; }
 
-  /* ---------- work pods ---------- */
+  /* ---------- work pods: desk workstations ---------- */
   .pod { --acc: #22d3ee; position: absolute; width: 176px; transform: translate(-50%, -100%); }
   .pod.plat-kaggle { --acc: #22d3ee; } .pod.plat-colab { --acc: #f5a544; } .pod.plat-local { --acc: #a78bfa; }
-  .pod-desk { height: 44px; border-radius: 10px; position: relative;
-    background: linear-gradient(180deg, #242945, #1a1e33); border: 2px solid var(--acc); }
-  .pod.working .pod-desk { box-shadow: 0 0 20px -2px var(--acc); }
-  .pod-screen { position: absolute; left: 13px; top: -25px; width: 52px; height: 35px; border-radius: 5px;
-    background: #0d1430; border: 2px solid var(--acc); overflow: hidden; }
+  .pod-desk { height: 46px; border-radius: 8px; position: relative;
+    background: linear-gradient(180deg, #7c5a38 0 10px, #5f4128 10px);
+    border: 2px solid rgba(0,0,0,.45);
+    box-shadow: 0 5px 0 rgba(0,0,0,.28), inset 0 1px 0 rgba(255,220,170,.35); }
+  .pod-desk::after { content: ""; position: absolute; left: 78px; top: 3px; width: 50px; height: 7px;
+    border-radius: 3px; background: rgba(15,18,28,.65);
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.09); }
+  .pod.working .pod-desk { box-shadow: 0 5px 0 rgba(0,0,0,.28), 0 0 20px -2px var(--acc); }
+  .pod-screen { position: absolute; left: 12px; top: -36px; width: 56px; height: 38px; border-radius: 6px;
+    background: #0b1526; border: 2.5px solid #20242f; overflow: hidden;
+    box-shadow: 0 0 10px rgba(87,230,201,.15); }
   .pod-screen::after { content: ""; position: absolute; inset: 5px;
-    background: repeating-linear-gradient(0deg, rgba(87,230,201,.5) 0 3px, transparent 3px 7px); }
-  .pod-name { position: absolute; left: 0; right: 0; top: 15px; text-align: center;
-    font-size: 11.5px; font-weight: 700; color: rgba(255,255,255,.66); white-space: nowrap; overflow: hidden; }
-  .pod-plat { height: 12px; margin: 3px 18px 0; border-radius: 50%;
-    background: radial-gradient(ellipse at center, rgba(255,255,255,.26), rgba(255,255,255,.04) 70%); }
-  .pod.working .pod-plat { background: radial-gradient(ellipse at center, var(--acc), rgba(255,255,255,.04) 72%);
+    background: repeating-linear-gradient(0deg, rgba(87,230,201,.55) 0 3px, transparent 3px 7px); }
+  .pod-name { position: absolute; left: 50%; transform: translateX(-50%); top: 17px; max-width: 152px;
+    text-align: center; font-size: 11.5px; font-weight: 700; color: #ffe9c4; white-space: nowrap;
+    overflow: hidden; background: rgba(0,0,0,.38); padding: 1px 8px; border-radius: 999px; }
+  .pod-plat { height: 12px; margin: 4px 22px 0; border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(20,14,8,.5), rgba(20,14,8,0) 70%); }
+  .pod.working .pod-plat { background: radial-gradient(ellipse at center, var(--acc), rgba(20,14,8,0) 72%);
     animation: platPulse 1.6s ease-in-out infinite; }
   @keyframes platPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
   .pod-box { display: none; }
-  .pod.working .pod-box { display: block; position: absolute; right: 12px; top: -21px; }
+  .pod.working .pod-box { display: block; position: absolute; right: 12px; top: -22px; }
 
   /* ---------- job boxes ---------- */
   .jobbox { width: 36px; height: 28px; border-radius: 4px; position: relative; flex: none;
@@ -138,7 +241,7 @@
     transform: translateX(-50%); background: rgba(255,235,200,.55); }
   .jobbox::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 5px;
     transform: translateY(-50%); background: rgba(255,235,200,.35); }
-  .sprite .jobbox { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  .sprite .jobbox { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%);
     display: none; z-index: 3; }
   .actor.carrying .sprite .jobbox { display: block; }
 
@@ -147,19 +250,25 @@
     will-change: transform; }
   .actor.plat-kaggle { --acc: #22d3ee; } .actor.plat-colab { --acc: #f5a544; }
   .actor.plat-local { --acc: #a78bfa; }
-  .a-robot { --sh: 124px; } .a-robot.mini { --sh: 58px; }
-  .a-manager { --sh: 118px; } .a-wizard { --sh: 118px; }
+  .a-robot { --sh: 124px; } .a-robot.mini { --sh: 66px; }
+  .a-manager { --sh: 120px; } .a-wizard { --sh: 120px; }
   .a-helper { --sh: 64px; } .a-drone { --sh: 86px; }
   .flip { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%) scaleX(var(--dir)); }
-  .a-robot.mini .flip { transform: translate(-50%, -100%) scaleX(var(--dir)) scale(.45); }
+  .a-robot.mini .flip { transform: translate(-50%, -100%) scaleX(var(--dir)) scale(.55); }
   .a-drone .flip { transform: translate(-50%, -50%); }
   .sprite { position: relative; transform-origin: 50% 100%; animation: breathe 3.4s ease-in-out infinite; }
   @keyframes breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-  .a-robot .sprite svg { width: 110px; height: 121px; }
-  .a-manager .sprite svg { width: 104px; height: 114px; }
-  .a-wizard .sprite svg { width: 104px; height: 114px; }
-  .a-helper .sprite svg { width: 58px; height: 61px; }
+  .a-robot .sprite svg { width: 104px; height: 121px; }
+  .a-manager .sprite svg { width: 100px; height: 117px; }
+  .a-wizard .sprite svg { width: 100px; height: 117px; }
+  .a-helper .sprite svg { width: 56px; height: 61px; }
   .a-drone .sprite svg { width: 132px; height: 79px; }
+  /* soft ellipse shadow under the feet, so characters stand ON the floor */
+  .shadow { position: absolute; left: 50%; bottom: -3px; width: 62px; height: 13px;
+    transform: translateX(-50%); border-radius: 50%; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,.42), rgba(0,0,0,0) 68%); }
+  .a-drone .shadow { display: none; }
+  .a-helper .shadow { width: 44px; height: 10px; }
   .char-svg { display: block; overflow: visible; }
   .actor.walking .sprite { animation: walkBob .36s ease-in-out infinite; }
   @keyframes walkBob { 0%, 100% { transform: translateY(0) rotate(-1.6deg); }
@@ -170,7 +279,7 @@
   .actor.sad .sprite { animation: shakeA .55s ease-in-out; }
   @keyframes shakeA { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-5px); }
     40% { transform: translateX(5px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
-  .actor.sleeping .sprite, .actor.offdim .sprite { filter: grayscale(1) brightness(.6); }
+  .actor.sleeping .sprite, .actor.offdim .sprite { filter: brightness(.78) saturate(.6); }
   .a-drone .sprite { animation: none; filter: drop-shadow(0 12px 13px rgba(0,0,0,.45)); }
 
   .bubblewrap { position: absolute; left: 0; bottom: var(--sh); transform: translateX(-50%);
@@ -199,39 +308,74 @@
     padding: 2.5px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .06em; }
   .a-drone .astat { top: 71px; }
 
-  /* SVG part styles (shared with v1 art) */
-  .antenna, .mic, .headset, .staff { stroke: #8b93b8; stroke-width: 3; stroke-linecap: round; }
-  .tip { fill: #565d7d; }
-  .actor.online .tip, .actor.work .tip, .a-helper.lit .tip { fill: var(--acc);
-    filter: drop-shadow(0 0 5px var(--acc)); }
-  .head, .hbody { fill: #2b3049; stroke: var(--acc); stroke-width: 2; }
-  .body { fill: #232842; stroke: var(--acc); stroke-width: 2; }
-  .ear, .neck, .base, .hbase { fill: #3a4062; }
-  .eye { fill: #eaf6ff; transform-box: fill-box; transform-origin: center; animation: blink 4.4s infinite; }
+  /* ---------- chibi people: shared face + limb rig ---------- */
+  .skin { fill: var(--skin, #f2c79b); }
+  .cheek { fill: #ff9d8a; opacity: .5; }
+  .e-open { fill: #23202b; transform-box: fill-box; transform-origin: center;
+    animation: blink 4.4s infinite; }
   @keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.08); } }
-  .mouth { fill: #8b93b8; }
-  .core { fill: var(--acc); opacity: .8; transform-box: fill-box; transform-origin: center; }
-  .actor.work .core { animation: corePulse 1s ease-in-out infinite; }
-  @keyframes corePulse { 0%, 100% { transform: scale(1); opacity: .7; }
-    50% { transform: scale(1.28); opacity: 1; } }
-  .arm { fill: #2b3049; stroke: var(--acc); stroke-width: 1.6; transform-box: fill-box; }
-  .arm-l { transform-origin: 50% 10%; } .arm-r { transform-origin: 50% 10%; }
-  .actor.walking .arm-l, .actor.work .arm-l { animation: swing .38s ease-in-out infinite; }
-  .actor.walking .arm-r, .actor.work .arm-r { animation: swing .38s ease-in-out infinite reverse; }
-  .actor.work .arm-l, .actor.work .arm-r { animation-duration: .95s; }
-  @keyframes swing { 0%, 100% { transform: rotate(10deg); } 50% { transform: rotate(-10deg); } }
-  /* operator */
-  .face { fill: #f2c79b; }
-  .cap { fill: #31456e; } .cap-brim { fill: #22345a; }
+  .e-shut { fill: none; stroke: #23202b; stroke-width: 2.6; stroke-linecap: round; display: none; }
+  .actor.sleeping .e-open, .a-manager.msleep .e-open, .a-wizard.doze .e-open { display: none; }
+  .actor.sleeping .e-shut, .a-manager.msleep .e-shut, .a-wizard.doze .e-shut { display: block; }
+  .m-norm, .m-sad { fill: none; stroke: #7a4632; stroke-width: 2.6; stroke-linecap: round; }
+  .m-sad { display: none; }
+  .m-happy { fill: #7a4632; display: none; }
+  .actor.hop .m-norm { display: none; }
+  .actor.hop .m-happy { display: block; }
+  .actor.sad .m-norm, .actor.sad .m-happy { display: none; }
+  .actor.sad .m-sad { display: block; }
+  .brow { fill: none; stroke: #6b4630; stroke-width: 2.4; stroke-linecap: round; }
+  .headg { transform-box: fill-box; transform-origin: 50% 92%; transition: transform .45s; }
+  .actor.sleeping .headg { transform: rotate(13deg); }
+  .actor.sad .headg { transform: rotate(-5deg); }
+  .arm { transform-box: fill-box; transform-origin: 50% 8%; }
+  .leg { transform-box: fill-box; transform-origin: 50% 0%; }
+  .actor.walking .leg-l { animation: legSwing .36s ease-in-out infinite; }
+  .actor.walking .leg-r { animation: legSwing .36s ease-in-out infinite reverse; }
+  @keyframes legSwing { 0%, 100% { transform: rotate(17deg); } 50% { transform: rotate(-17deg); } }
+  .actor.walking .arm-l { animation: swing .36s ease-in-out infinite; }
+  .actor.walking .arm-r { animation: swing .36s ease-in-out infinite reverse; }
+  @keyframes swing { 0%, 100% { transform: rotate(13deg); } 50% { transform: rotate(-13deg); } }
+  .actor.work .arm-l { animation: typeA .34s ease-in-out infinite; }
+  .actor.work .arm-r { animation: typeA .34s ease-in-out infinite reverse; }
+  @keyframes typeA { 0%, 100% { transform: rotate(-24deg); } 50% { transform: rotate(-38deg); } }
+  .actor.carrying .arm-l, .actor.carrying .arm-r { animation: none; }
+  .actor.carrying .arm-l { transform: rotate(164deg); }
+  .actor.carrying .arm-r { transform: rotate(-164deg); }
+  .hand { fill: var(--skin, #f2c79b); }
+  /* engineer (GPU workers) */
+  .hat-dome { fill: var(--hat, #f5b544); }
+  .hat-brim { fill: var(--hat, #f5b544); filter: brightness(.82); }
+  .lampdot { fill: #d8d2c4; }
+  .actor.online .lampdot, .actor.work .lampdot { fill: #ffe9a8;
+    filter: drop-shadow(0 0 4px #ffd94d); }
+  .suit { fill: var(--suit, #3b6ea5); }
+  .shirt { fill: #e8e4da; }
+  .strap { fill: var(--suit, #3b6ea5); filter: brightness(.78); }
+  .boot { fill: #4a3423; }
+  .badge { fill: var(--acc); stroke: rgba(255,255,255,.5); stroke-width: 1.2; }
+  .actor.work .badge, .a-helper.lit .badge { filter: drop-shadow(0 0 4px var(--acc)); }
+  /* fleet manager */
+  .a-manager { --acc: #57e6c9; }
+  .uniform { fill: #31456e; }
+  .uniform-d { fill: #22345a; }
+  .hair { fill: #4a3428; }
+  .shoe { fill: #232838; }
   .pad { fill: #1d2338; stroke: var(--acc); stroke-width: 1.4; }
-  .torso { fill: #31456e; } .legs { fill: #232842; }
-  .a-manager .arm { fill: #31456e; stroke: rgba(255,255,255,.25); }
-  .a-manager.pointing .arm-r { transform: rotate(-138deg); }
-  /* wizard */
-  .hat { fill: #4b3482; stroke: #a78bfa; stroke-width: 1.6; }
-  .hat-brim { fill: #3a2866; }
-  .beard { fill: #e8e6df; }
-  .robe { fill: #3a2866; stroke: #a78bfa; stroke-width: 1.6; }
+  .headset, .mic { stroke: #141a2a; stroke-width: 3; stroke-linecap: round; fill: none; }
+  .micdot { fill: #ff5f5f; }
+  .tie { fill: #c94f4f; }
+  .a-manager.pointing .arm-r { transform: rotate(-132deg); }
+  .a-manager.msleep .sprite { filter: brightness(.72) saturate(.65); }
+  /* wizard (site agent) */
+  .hat { fill: #5b3a9e; stroke: #a78bfa; stroke-width: 1.6; }
+  .hatband { fill: #ffd94d; }
+  .hat-brimw { fill: #4a2f80; }
+  .beard { fill: #ece9e2; }
+  .robe { fill: #46307a; stroke: #a78bfa; stroke-width: 1.6; }
+  .robe-d { fill: #37255f; }
+  .a-wizard .brow { stroke: #ece9e2; stroke-width: 3.2; }
+  .staff { stroke: #7a5230; stroke-width: 4; stroke-linecap: round; }
   .hatg { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .4s; }
   .a-wizard.doze .hatg { transform: rotate(11deg) translateY(2px); }
   .staffg { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .3s; }
@@ -239,11 +383,16 @@
   .orb { fill: #565d7d; }
   .a-wizard.awake .orb { fill: #c9b8ff; filter: drop-shadow(0 0 9px #a78bfa);
     animation: corePulse 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-  /* helper */
-  .dome { fill: #2b3049; stroke: var(--acc); stroke-width: 2; }
+  @keyframes corePulse { 0%, 100% { transform: scale(1); opacity: .7; }
+    50% { transform: scale(1.28); opacity: 1; } }
+  /* helper (junior engineer) */
+  .cap { fill: var(--hat, #a78bfa); }
+  .cap-brim2 { fill: var(--hat, #a78bfa); filter: brightness(.8); }
+  .tip { fill: #565d7d; }
   .a-helper { --acc: #a78bfa; }
-  .a-helper.unlit .sprite { filter: grayscale(1) brightness(.62); }
-  .a-helper.err .core, .a-helper.err .tip { fill: #ff5f5f; }
+  .a-helper.unlit .sprite { filter: grayscale(.85) brightness(.62); }
+  .a-helper.lit .tip { fill: #ffd94d; filter: drop-shadow(0 0 5px #ffd94d); }
+  .a-helper.err .badge, .a-helper.err .tip { fill: #ff5f5f; }
   /* drone */
   .dstrut { stroke: #8b93b8; stroke-width: 3; stroke-linecap: round; }
   .dbody { fill: #2b3049; stroke: #8b93b8; stroke-width: 2; }
@@ -320,7 +469,7 @@
   <div class="cards" id="cards"></div>
   <div class="cr-grid">
     <section class="panel glass">
-      <h2>&#127916; The Floor — a living cartoon ground</h2>
+      <h2>&#127969; The Room — the crew at work</h2>
       <div class="camrow">
         <button class="cambtn active" id="cam-movie" type="button">&#127916; Movie Cam</button>
         <button class="cambtn" id="cam-full" type="button">&#128506;&#65038; Full Ground</button>
@@ -329,8 +478,27 @@
       </div>
       <div id="viewport">
         <div id="world">
+          <div class="ceiling">
+            <div class="lamp" style="left:294px"><i></i></div>
+            <div class="lamp" style="left:794px"><i></i></div>
+            <div class="lamp" style="left:1294px"><i></i></div>
+          </div>
           <div class="wall"></div>
-          <div class="floorgrid"></div>
+          <div class="rackwin" style="left:92px;width:378px">
+            <i class="rlight" style="left:26px;top:30px"></i>
+            <i class="rlight amber" style="left:118px;top:56px;animation-delay:.7s"></i>
+            <i class="rlight" style="left:210px;top:30px;animation-delay:1.3s"></i>
+            <i class="rlight red" style="left:302px;top:82px;animation-delay:.4s"></i>
+            <i class="rlight amber" style="left:64px;top:140px;animation-delay:1.8s"></i>
+            <i class="rlight" style="left:268px;top:164px;animation-delay:2.2s"></i>
+          </div>
+          <div class="rackwin" style="left:1130px;width:262px">
+            <i class="rlight" style="left:30px;top:36px;animation-delay:.9s"></i>
+            <i class="rlight amber" style="left:120px;top:88px;animation-delay:1.6s"></i>
+            <i class="rlight" style="left:196px;top:140px;animation-delay:.2s"></i>
+          </div>
+          <div class="wallpipe"></div>
+          <div class="floor"></div>
           <div class="board"><h4>FLEET BOARD</h4>
             <div class="blines"><i style="width:62%"></i><i style="width:38%"></i><i style="width:74%"></i></div>
             <div class="board-sub">TOQIX FLEET &middot; LIVE</div>
@@ -339,11 +507,17 @@
             <div class="shelf-board"></div><div class="zone-tag" id="qtag">QUEUE 0</div></div>
           <div class="shelf o"><div class="shelf-back"></div>
             <div class="shelf-board"></div><div class="zone-tag">DELIVERED</div></div>
-          <div class="restzone"><div class="moon"></div><div class="bean b1"></div>
-            <div class="bean b2"></div><div class="bean b3"></div>
+          <div class="restzone"><div class="moon"></div>
+            <div class="couch"><div class="cback"></div><div class="cseat"></div>
+              <div class="carm l"></div><div class="carm r"></div></div>
+            <div class="bean b1"></div><div class="bean b2"></div><div class="bean b3"></div>
+            <div class="plant"><span class="leaf l1"></span><span class="leaf l2"></span>
+              <span class="leaf l3"></span><div class="pot"></div></div>
             <div class="zone-tag" id="resttag">REST</div></div>
           <div id="command">
-            <div class="console"><div class="console-screen"><i></i><i></i><i></i></div>
+            <div class="console"><div class="cscreens">
+              <div class="console-screen"><i></i><i></i><i></i></div>
+              <div class="console-screen"><i></i><i></i><i></i></div></div>
               <div class="console-desk"></div></div>
             <div class="portal"></div>
           </div>
@@ -389,66 +563,140 @@
   var viewport = $("viewport"), world = $("world");
   var actorsLayer = $("actors"), fxLayer = $("fx");
 
-  /* ---------------- character art (pure SVG, zero assets) ---------------- */
-  function robotSVG() {
-    return '<svg class="char-svg" viewBox="0 0 120 132" aria-hidden="true">'
-      + '<line class="antenna" x1="60" y1="24" x2="60" y2="11"/>'
-      + '<circle class="tip" cx="60" cy="8" r="5"/>'
-      + '<rect class="ear" x="21" y="38" width="7" height="18" rx="3.5"/>'
-      + '<rect class="ear" x="92" y="38" width="7" height="18" rx="3.5"/>'
-      + '<rect class="head" x="29" y="24" width="62" height="46" rx="13"/>'
-      + '<circle class="eye" cx="48" cy="44" r="5.5"/>'
-      + '<circle class="eye" cx="72" cy="44" r="5.5"/>'
-      + '<rect class="mouth" x="50" y="59" width="20" height="4" rx="2"/>'
-      + '<rect class="neck" x="54" y="70" width="12" height="6"/>'
-      + '<rect class="arm arm-l" x="15" y="78" width="11" height="32" rx="5.5"/>'
-      + '<rect class="arm arm-r" x="94" y="78" width="11" height="32" rx="5.5"/>'
-      + '<rect class="body" x="33" y="76" width="54" height="40" rx="11"/>'
-      + '<circle class="core" cx="60" cy="95" r="8.5"/>'
-      + '<rect class="base" x="42" y="118" width="36" height="8" rx="4"/>'
-      + '</svg>';
+  /* ---------------- character art: chibi people (pure SVG, zero assets) ----
+     Original designs in a generic cute game style: big head (~45% of the
+     height), simple face with swappable mouths/eyes (CSS classes switch
+     normal / happy / sad / asleep), role outfits per character. Limb and
+     head groups (.arm, .leg, .headg) are animated by the CSS rig above. */
+  function faceSVG(cx, cy, r, brows) {
+    var ex = Math.round(r * 0.37), ey = cy;
+    var my = cy + Math.round(r * 0.4), by = ey - Math.round(r * 0.36);
+    var s = '<circle class="skin" cx="' + cx + '" cy="' + cy + '" r="' + r + '"/>'
+      + '<ellipse class="cheek" cx="' + (cx - r * 0.58) + '" cy="' + (cy + r * 0.32)
+      + '" rx="' + (r * 0.17) + '" ry="' + (r * 0.11) + '"/>'
+      + '<ellipse class="cheek" cx="' + (cx + r * 0.58) + '" cy="' + (cy + r * 0.32)
+      + '" rx="' + (r * 0.17) + '" ry="' + (r * 0.11) + '"/>';
+    if (brows) {
+      s += '<path class="brow" d="M' + (cx - ex - 5) + ' ' + by + ' q5 -3 10 0"/>'
+        + '<path class="brow" d="M' + (cx + ex - 5) + ' ' + by + ' q5 -3 10 0"/>';
+    }
+    s += '<ellipse class="e-open" cx="' + (cx - ex) + '" cy="' + ey + '" rx="'
+      + (r * 0.115) + '" ry="' + (r * 0.16) + '"/>'
+      + '<ellipse class="e-open" cx="' + (cx + ex) + '" cy="' + ey + '" rx="'
+      + (r * 0.115) + '" ry="' + (r * 0.16) + '"/>'
+      + '<path class="e-shut" d="M' + (cx - ex - 5) + ' ' + ey + ' q5 4 10 0"/>'
+      + '<path class="e-shut" d="M' + (cx + ex - 5) + ' ' + ey + ' q5 4 10 0"/>'
+      + '<path class="m-norm" d="M' + (cx - 7) + ' ' + my + ' q7 5 14 0"/>'
+      + '<path class="m-happy" d="M' + (cx - 8) + ' ' + (my - 1) + ' a8 8 0 0 0 16 0 z"/>'
+      + '<path class="m-sad" d="M' + (cx - 7) + ' ' + (my + 4) + ' q7 -5 14 0"/>';
+    return s;
   }
-  function operatorSVG() {
-    return '<svg class="char-svg" viewBox="0 0 120 132" aria-hidden="true">'
-      + '<rect class="legs" x="45" y="102" width="12" height="26" rx="5"/>'
-      + '<rect class="legs" x="63" y="102" width="12" height="26" rx="5"/>'
-      + '<rect class="arm arm-l" x="29" y="62" width="11" height="36" rx="5.5"/>'
-      + '<rect class="arm arm-r" x="80" y="62" width="11" height="36" rx="5.5"/>'
-      + '<rect class="torso" x="38" y="56" width="44" height="52" rx="11"/>'
-      + '<circle class="face" cx="60" cy="34" r="16"/>'
-      + '<path class="cap" d="M43 30 a17 15 0 0 1 34 0 z"/>'
-      + '<rect class="cap-brim" x="39" y="29" width="42" height="5" rx="2.5"/>'
-      + '<path class="headset" d="M42 36 a18 17 0 0 1 36 0" fill="none"/>'
-      + '<rect class="pad" x="39" y="34" width="7" height="13" rx="3.5"/>'
-      + '<rect class="pad" x="74" y="34" width="7" height="13" rx="3.5"/>'
-      + '<path class="mic" d="M77 46 q3 10 -9 12" fill="none"/>'
-      + '<circle class="tip" cx="65" cy="58" r="2.6"/>'
-      + '<circle class="eye" cx="54" cy="36" r="2.4"/>'
-      + '<circle class="eye" cx="66" cy="36" r="2.4"/>'
-      + '</svg>';
+  function legsSVG(pantClass, shoeClass, hipY) {
+    return '<g class="leg leg-l"><rect class="' + pantClass + '" x="46" y="' + hipY
+      + '" width="12" height="24" rx="5"/>'
+      + '<rect class="' + shoeClass + '" x="44" y="' + (hipY + 20)
+      + '" width="16" height="10" rx="4.5"/></g>'
+      + '<g class="leg leg-r"><rect class="' + pantClass + '" x="62" y="' + hipY
+      + '" width="12" height="24" rx="5"/>'
+      + '<rect class="' + shoeClass + '" x="60" y="' + (hipY + 20)
+      + '" width="16" height="10" rx="4.5"/></g>';
+  }
+  function engineerSVG() {
+    return '<svg class="char-svg" viewBox="0 0 120 140" aria-hidden="true">'
+      + legsSVG("suit", "boot", 104)
+      + '<g class="arm arm-l"><rect class="shirt" x="28" y="76" width="11" height="32" rx="5.5"/>'
+      + '<circle class="hand" cx="33.5" cy="110" r="5"/></g>'
+      + '<g class="arm arm-r"><rect class="shirt" x="81" y="76" width="11" height="32" rx="5.5"/>'
+      + '<circle class="hand" cx="86.5" cy="110" r="5"/></g>'
+      + '<rect class="shirt" x="39" y="74" width="42" height="38" rx="9"/>'
+      + '<rect class="strap" x="48" y="76" width="6" height="15"/>'
+      + '<rect class="strap" x="66" y="76" width="6" height="15"/>'
+      + '<rect class="suit" x="46" y="89" width="28" height="23" rx="4"/>'
+      + '<circle class="badge" cx="60" cy="99" r="4.5"/>'
+      + '<g class="headg">'
+      + '<circle class="skin" cx="32" cy="48" r="5.5"/>'
+      + '<circle class="skin" cx="88" cy="48" r="5.5"/>'
+      + faceSVG(60, 47, 27, false)
+      + '<path class="hat-dome" d="M31 40 a29 25 0 0 1 58 0 z"/>'
+      + '<rect class="hat-brim" x="27" y="38" width="66" height="7" rx="3.5"/>'
+      + '<circle class="lampdot" cx="60" cy="29" r="3.5"/>'
+      + '</g></svg>';
+  }
+  function managerSVG() {
+    return '<svg class="char-svg" viewBox="0 0 120 140" aria-hidden="true">'
+      + legsSVG("uniform-d", "shoe", 104)
+      + '<g class="arm arm-l"><rect class="uniform" x="28" y="76" width="11" height="32" rx="5.5"/>'
+      + '<circle class="hand" cx="33.5" cy="110" r="5"/></g>'
+      + '<g class="arm arm-r"><rect class="uniform" x="81" y="76" width="11" height="32" rx="5.5"/>'
+      + '<circle class="hand" cx="86.5" cy="110" r="5"/></g>'
+      + '<rect class="uniform" x="39" y="74" width="42" height="38" rx="9"/>'
+      + '<path d="M52 74 h16 l-8 9 z" fill="#e8e4da"/>'
+      + '<rect class="tie" x="57" y="82" width="6" height="15" rx="2"/>'
+      + '<circle class="badge" cx="47" cy="97" r="4"/>'
+      + '<g class="headg">'
+      + '<circle class="skin" cx="32" cy="48" r="5.5"/>'
+      + '<circle class="skin" cx="88" cy="48" r="5.5"/>'
+      + faceSVG(60, 47, 27, true)
+      + '<ellipse class="hair" cx="60" cy="26" rx="26" ry="11"/>'
+      + '<path class="headset" d="M34 44 a26 24 0 0 1 52 0"/>'
+      + '<rect class="pad" x="29" y="41" width="8" height="15" rx="4"/>'
+      + '<rect class="pad" x="83" y="41" width="8" height="15" rx="4"/>'
+      + '<path class="mic" d="M87 54 q2 14 -13 16"/>'
+      + '<circle class="micdot" cx="72" cy="70" r="3"/>'
+      + '</g></svg>';
   }
   function wizardSVG() {
-    return '<svg class="char-svg" viewBox="0 0 120 132" aria-hidden="true">'
-      + '<g class="staffg"><line class="staff" x1="93" y1="42" x2="93" y2="122"/>'
-      + '<circle class="orb" cx="93" cy="33" r="9.5"/></g>'
-      + '<path class="robe" d="M36 126 l11 -46 h26 l11 46 z"/>'
-      + '<path class="beard" d="M49 66 q11 15 22 0 l-5 19 q-6 5 -12 0 z"/>'
-      + '<circle class="face" cx="60" cy="58" r="13"/>'
-      + '<circle class="eye" cx="55" cy="57" r="2.2"/>'
-      + '<circle class="eye" cx="65" cy="57" r="2.2"/>'
-      + '<g class="hatg"><polygon class="hat" points="60,2 39,45 81,45"/>'
-      + '<ellipse class="hat-brim" cx="60" cy="46" rx="28" ry="6"/></g>'
+    return '<svg class="char-svg" viewBox="0 0 120 140" aria-hidden="true">'
+      + '<path class="robe" d="M38 138 L48 78 h24 l10 60 z"/>'
+      + '<path class="robe-d" d="M53 138 L60 94 l7 44 z"/>'
+      + '<rect class="hatband" x="47" y="106" width="26" height="6" rx="3"/>'
+      + '<g class="arm arm-l"><rect class="robe" x="30" y="80" width="11" height="30" rx="5.5"/>'
+      + '<circle class="hand" cx="35.5" cy="112" r="4.5"/></g>'
+      + '<g class="arm arm-r"><rect class="robe" x="79" y="80" width="11" height="30" rx="5.5"/>'
+      + '<circle class="hand" cx="84.5" cy="103" r="4.5"/></g>'
+      + '<g class="staffg"><line class="staff" x1="86" y1="30" x2="86" y2="136"/>'
+      + '<circle class="orb" cx="86" cy="23" r="10"/>'
+      + '<circle cx="86" cy="23" r="4" fill="rgba(255,255,255,.45)"/></g>'
+      + '<g class="headg">'
+      + '<circle class="skin" cx="37" cy="52" r="4.5"/>'
+      + '<circle class="skin" cx="83" cy="52" r="4.5"/>'
+      + '<circle class="skin" cx="60" cy="50" r="24"/>'
+      + '<ellipse class="cheek" cx="44" cy="57" rx="4" ry="2.7"/>'
+      + '<ellipse class="cheek" cx="76" cy="57" rx="4" ry="2.7"/>'
+      + '<path class="beard" d="M39 56 q21 24 42 0 q-3 32 -21 38 q-18 -6 -21 -38 z"/>'
+      + '<path class="brow" d="M41 42 q6 -3.5 12 0"/>'
+      + '<path class="brow" d="M67 42 q6 -3.5 12 0"/>'
+      + '<ellipse class="e-open" cx="49" cy="49" rx="2.8" ry="3.8"/>'
+      + '<ellipse class="e-open" cx="71" cy="49" rx="2.8" ry="3.8"/>'
+      + '<path class="e-shut" d="M44 49 q5 4 10 0"/>'
+      + '<path class="e-shut" d="M66 49 q5 4 10 0"/>'
+      + '</g>'
+      + '<g class="hatg"><polygon class="hat" points="60,4 38,46 82,46"/>'
+      + '<rect class="hatband" x="41" y="39" width="38" height="7"/>'
+      + '<ellipse class="hat-brimw" cx="60" cy="47" rx="29" ry="6"/></g>'
       + '</svg>';
   }
   function helperSVG() {
-    return '<svg class="char-svg" viewBox="0 0 80 84" aria-hidden="true">'
-      + '<line class="antenna" x1="40" y1="18" x2="40" y2="9"/>'
-      + '<circle class="tip" cx="40" cy="6" r="3.5"/>'
-      + '<path class="dome" d="M14 45 a26 25 0 0 1 52 0 z"/>'
-      + '<rect class="hbody" x="14" y="45" width="52" height="23" rx="9"/>'
-      + '<circle class="core" cx="40" cy="54" r="6"/>'
-      + '<ellipse class="hbase" cx="40" cy="75" rx="20" ry="5"/>'
-      + '</svg>';
+    return '<svg class="char-svg" viewBox="0 0 84 92" aria-hidden="true">'
+      + '<g class="leg leg-l"><rect class="suit" x="30" y="66" width="10" height="18" rx="4"/>'
+      + '<rect class="boot" x="28" y="80" width="14" height="8" rx="4"/></g>'
+      + '<g class="leg leg-r"><rect class="suit" x="44" y="66" width="10" height="18" rx="4"/>'
+      + '<rect class="boot" x="42" y="80" width="14" height="8" rx="4"/></g>'
+      + '<g class="arm arm-l"><rect class="shirt" x="19" y="48" width="9" height="24" rx="4.5"/>'
+      + '<circle class="hand" cx="23.5" cy="74" r="4"/></g>'
+      + '<g class="arm arm-r"><rect class="shirt" x="56" y="48" width="9" height="24" rx="4.5"/>'
+      + '<circle class="hand" cx="60.5" cy="74" r="4"/></g>'
+      + '<rect class="shirt" x="26" y="46" width="32" height="26" rx="8"/>'
+      + '<rect class="suit" x="32" y="57" width="20" height="15" rx="3"/>'
+      + '<circle class="badge" cx="42" cy="63" r="3.5"/>'
+      + '<g class="headg">'
+      + '<circle class="skin" cx="21" cy="30" r="4.5"/>'
+      + '<circle class="skin" cx="63" cy="30" r="4.5"/>'
+      + faceSVG(42, 29, 20, false)
+      + '<path class="cap" d="M21 24 a21 18 0 0 1 42 0 z"/>'
+      + '<rect class="cap-brim2" x="18" y="22" width="48" height="5" rx="2.5"/>'
+      + '<circle class="tip" cx="42" cy="13" r="3"/>'
+      + '</g></svg>';
   }
   function droneSVG() {
     function rotor(x, y) {
@@ -460,10 +708,12 @@
       + '<line class="dstrut" x1="88" y1="34" x2="122" y2="16"/>'
       + '<line class="dstrut" x1="52" y1="50" x2="18" y2="68"/>'
       + '<line class="dstrut" x1="88" y1="50" x2="122" y2="68"/>'
-      + '<rect class="dbody" x="42" y="24" width="56" height="36" rx="12"/>'
+      + '<rect class="dbody" x="42" y="24" width="56" height="36" rx="17"/>'
       + '<g class="deye-g"><circle class="deye-w" cx="70" cy="42" r="14.5"/>'
       + '<circle class="diris" cx="70" cy="42" r="7.5"/>'
       + '<circle class="dpupil" cx="70" cy="42" r="3.4"/></g>'
+      + '<ellipse class="cheek" cx="47" cy="51" rx="3" ry="2"/>'
+      + '<ellipse class="cheek" cx="93" cy="51" rx="3" ry="2"/>'
       + rotor(18, 16) + rotor(122, 16) + rotor(18, 68) + rotor(122, 68)
       + '<circle class="dlight" cx="52" cy="56" r="2.4"/>'
       + '<circle class="dlight" cx="88" cy="56" r="2.4"/>'
@@ -479,6 +729,23 @@
   var BOARD_FRONT = { x: 800, y: 208 };
   var WIZ_POST = { x: 1398, y: 322 };
   var WALK = 120, RUN = 190;
+  /* per-character colours: [hard-hat, overalls] pairs + skin tones, picked
+     by a stable hash of the worker name so individuals differ */
+  var WORKER_PAL = [["#f5b544", "#3b6ea5"], ["#ef6461", "#4a7c59"],
+    ["#3ec6b8", "#5b5ea6"], ["#f28bb4", "#7a4f9d"], ["#ffd94d", "#38618c"],
+    ["#8bd450", "#946b3a"], ["#ff9f68", "#4f7f7a"], ["#a78bfa", "#5a4f8c"]];
+  var SKIN_TONES = ["#ffd9b3", "#f2c79b", "#c68863", "#8d5a3b"];
+  function nameHash(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h;
+  }
+  function dressUp(el, seed, palOffset) {
+    var h = nameHash(seed), pal = WORKER_PAL[(h + (palOffset || 0)) % WORKER_PAL.length];
+    el.style.setProperty("--hat", pal[0]);
+    el.style.setProperty("--suit", pal[1]);
+    el.style.setProperty("--skin", SKIN_TONES[h % SKIN_TONES.length]);
+  }
   function podSlot(i) {
     var cx = 425 + (i % 5) * 186, deskY = 452 + Math.floor(i / 5) * 184;
     return { cx: cx, deskY: deskY, front: { x: cx, y: deskY + 64 } };
@@ -494,7 +761,7 @@
     var el = document.createElement("div");
     el.className = "actor a-" + kind;
     el.innerHTML = '<div class="bubblewrap"><div class="bubble"></div></div>' + ZZ
-      + '<div class="flip"><div class="sprite">' + svgHTML
+      + '<div class="flip"><div class="shadow"></div><div class="sprite">' + svgHTML
       + '<div class="jobbox"></div></div></div>'
       + '<div class="aname">' + (nameHTML || "") + '</div><div class="astat"></div>';
     actorsLayer.appendChild(el);
@@ -631,7 +898,7 @@
   }
 
   /* ---------------- cast: singleton characters ---------------- */
-  var manager = makeActor("manager", operatorSVG(), "Fleet Manager");
+  var manager = makeActor("manager", managerSVG(), "Fleet Manager");
   manager.x = CONSOLE_POST.x; manager.y = CONSOLE_POST.y;
   manager.lastQueue = null; manager.lastDetail = null; setPos(manager);
   var wizard = makeActor("wizard", wizardSVG(), "TOQIX Agent");
@@ -651,6 +918,7 @@
   var helpers = SYSTEMS.map(function (s, i) {
     var a = makeActor("helper", helperSVG(), esc(s[1]));
     a.key = s[0]; a.segX = 200 + i * 400; a.phase = rand(0, 6.28);
+    dressUp(a.el, s[0], i + 2);
     a.x = a.segX; a.y = 872; a.lastAgo = null; a.lit = false;
     a.el.classList.add("unlit"); setPos(a);
     return a;
@@ -661,11 +929,12 @@
   var feedById = new Map(), prevChatIds = null;
 
   function createRobot(w) {
-    var a = makeActor("robot", robotSVG(),
+    var a = makeActor("robot", engineerSVG(),
       esc(w.name) + '<span class="atag">' + esc(String(w.platform).toUpperCase()) + "</span>");
     a.name = w.name; a.platform = w.platform; a.jobId = null;
     a.podIndex = nextPod++; a.restIndex = nextRest++;
     a.el.classList.add("plat-" + w.platform);
+    dressUp(a.el, w.name, 0);
     a.el.title = w.name;
     a.x = DOOR.x; a.y = DOOR.y;
     setPos(a);

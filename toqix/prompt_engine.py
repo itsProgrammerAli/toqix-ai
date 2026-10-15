@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import re
 
+from . import config
 from .curriculum import detect_domain, get_domain
 
 # ---------------------------------------------------------------------------
@@ -281,6 +282,149 @@ def _detail_clauses(low: str) -> tuple[list[str], bool]:
     return clauses, wants_text
 
 
+# ---------------------------------------------------------------------------
+# Sound + scene structure (video quality upgrade, 2026-10-15)
+#
+# Wan renders SILENT video: the owner received a 10s clip with no
+# audio track at all and no story logic (one frozen pose). Two
+# deterministic fixes live here:
+#
+# * sound_prompt — a MusicGen-style description of the sound bed the
+#   runner generates and muxes onto every video. Derived from the
+#   prompt's content keywords first (a fight is a fight, in any
+#   domain), then the curriculum domain, then a neutral default.
+#
+# * scenes — heavy videos (duration >= config.HEAVY_DURATION) split
+#   into TWO scene prompts: a setup beat and an action/payoff beat.
+#   Both carry the SAME character anchor text verbatim (the subject
+#   sentence plus the subject-consistency lock clause when one was
+#   built), so the character cannot drift between the two clips the
+#   runner renders and concatenates.
+# ---------------------------------------------------------------------------
+
+_SOUND_RULES: list[tuple[tuple[str, ...], str]] = [
+    (("fight", "battle", "war", "combat", "versus", "attack",
+      "warrior", "superhero", "boxing"),
+     "epic cinematic orchestral battle music, heavy drums, brass, "
+     "intense and heroic"),
+    (("ocean", "sea", "beach", "wave", "underwater", "island",
+      "coast", "samandar"),
+     "calm cinematic ambient music with gentle ocean waves, soft "
+     "piano, peaceful and spacious"),
+    (("space", "galaxy", "planet", "astronaut", "rocket", "stars",
+      "moonlight", "spaceship", "mars"),
+     "dark cinematic synth ambient music, deep pads and slow "
+     "pulses, vast and mysterious"),
+    (("city", "urban", "downtown", "traffic", "neon", "skyline",
+      "street"),
+     "modern urban ambience, electronic pulse, subtle city sounds, "
+     "energetic and stylish"),
+    (("rain", "storm", "thunder", "monsoon"),
+     "moody cinematic ambient music with rain and distant thunder, "
+     "soft strings, emotional"),
+    (("snow", "winter", "frozen"),
+     "gentle winter ambient music, soft piano and soft wind, calm "
+     "and magical"),
+    (("forest", "jungle", "garden", "meadow", "nature", "waterfall",
+      "mountain", "river", "lake", "panda", "jangal"),
+     "gentle peaceful ambient music, soft piano and nature sounds, "
+     "birds chirping"),
+    (("desert", "dunes", "sahara"),
+     "atmospheric desert ambient music, soft wind and sparse "
+     "percussion, vast and still"),
+    (("dance", "party", "celebrat", "festival", "parade"),
+     "upbeat joyful music, lively rhythm and percussion, "
+     "celebratory energy"),
+    (("horror", "ghost", "scary", "haunted", "dark alley"),
+     "dark tense ambient music, low drones and sparse piano, eerie "
+     "and suspenseful"),
+    (("love", "romantic", "wedding", "couple"),
+     "tender romantic orchestral music, soft piano and strings, "
+     "warm and emotional"),
+]
+
+_SOUND_BY_DOMAIN: dict[str, str] = {
+    "animals": "gentle peaceful ambient music, soft piano and "
+               "nature sounds, birds chirping",
+    "nature_landscapes": "gentle peaceful ambient music, soft piano "
+                         "and nature sounds, birds chirping",
+    "ocean_weather": "calm cinematic ambient music with gentle "
+                     "ocean waves, soft piano, peaceful and spacious",
+    "cities_streets": "modern urban ambience, electronic pulse, "
+                      "subtle city sounds, energetic and stylish",
+    "space_scifi": "dark cinematic synth ambient music, deep pads "
+                   "and slow pulses, vast and mysterious",
+    "sports": "high-energy cinematic sports music, driving drums "
+              "and electric guitar, triumphant and powerful",
+    "vehicles": "energetic cinematic electronic music, rhythmic "
+                "pulses, a strong sense of speed",
+    "fantasy": "magical orchestral fantasy music, choir and harp, "
+               "wondrous and epic",
+    "festivals_culture": "joyful festive music, lively percussion "
+                         "and melody, celebratory",
+    "people_daily_life": "warm gentle acoustic music, soft guitar "
+                         "and piano, heartfelt everyday mood",
+    "food": "light cheerful acoustic music, playful and appetizing "
+            "mood",
+    "anime_cartoon": "bright cheerful anime-style music, playful "
+                     "melody, energetic",
+    "business_tech": "clean modern corporate electronic music, "
+                     "subtle pulse, professional",
+    "architecture": "calm elegant ambient music, soft piano, "
+                    "spacious and refined",
+    "abstract_art": "dreamy ambient electronic music, flowing "
+                    "textures, artistic and surreal",
+}
+
+_SOUND_DEFAULT = "cinematic ambient music matching the scene mood"
+
+
+def _build_sound_prompt(low: str, domain: dict | None) -> str:
+    """MusicGen-style sound-bed description for a video prompt.
+
+    Content keywords win over the domain (a superhero fight in the
+    space domain still wants battle music); the domain is the next
+    signal; the fallback is a neutral cinematic bed."""
+    match = _match_rules(_SOUND_RULES, low)
+    if match:
+        return match
+    if domain and domain["id"] in _SOUND_BY_DOMAIN:
+        return _SOUND_BY_DOMAIN[domain["id"]]
+    return _SOUND_DEFAULT
+
+
+def _build_scenes(subject: str, detail_clauses: list[str],
+                  tail_parts: list[str]) -> list[str]:
+    """Split a heavy video request into [setup, payoff] scene prompts.
+
+    The character anchor — the subject sentence plus the
+    subject-consistency lock clause when present — is reproduced
+    VERBATIM at the head of both scenes; only the beat differs.
+    ``tail_parts`` are the enhanced prompt's shared clauses (camera,
+    lighting, mood, style/domain tokens, remaining detail clauses,
+    motion/quality, composition) minus the lock clause itself, which
+    already lives inside the anchor."""
+    lock = next((c for c in detail_clauses
+                 if c.startswith("one single ")), None)
+    anchor = subject if not lock else f"{subject}, {lock}"
+    anchor = anchor[0].upper() + anchor[1:]
+    tail = ", ".join(p.strip().rstrip(",") for p in tail_parts
+                     if p and p != lock)
+    setup_beat = (
+        "the scene opens and the subject is revealed in the "
+        "environment, poised and ready, anticipation building in "
+        "the moments just before the main action"
+    )
+    payoff_beat = (
+        f"the main action in full motion: {subject}, the decisive "
+        "climax of the scene, dynamic and powerful"
+    )
+    return [
+        f"{anchor}. {setup_beat[0].upper() + setup_beat[1:]}, {tail}.",
+        f"{anchor}. {payoff_beat[0].upper() + payoff_beat[1:]}, {tail}.",
+    ]
+
+
 def enhance_prompt(
     user_prompt: str,
     style: str = DEFAULT_STYLE,
@@ -296,7 +440,10 @@ def enhance_prompt(
     contributes its default camera/lighting and its extra tokens.
 
     Returns a dict with: original, translated, enhanced_prompt,
-    negative_prompt, camera, lighting, mood, style, domain.
+    negative_prompt, camera, lighting, mood, style, domain — plus,
+    for video jobs, sound_prompt (the MusicGen sound-bed text) and
+    scenes (heavy jobs only: [setup, payoff] scene prompts sharing
+    one verbatim character anchor; [] for normal durations).
     """
     original = (user_prompt or "").strip()
     if not original:
@@ -343,6 +490,8 @@ def enhance_prompt(
             "style": style,
             "domain": domain["id"] if domain else "",
             "kind": kind,
+            "sound_prompt": "",
+            "scenes": [],
         }
 
     parts = [
@@ -382,6 +531,16 @@ def enhance_prompt(
     elif style == "anime":
         negative += ", photorealistic, 3d render, live action"
 
+    # Sound bed + (heavy only) scene structure — video jobs only.
+    sound_prompt = ""
+    scenes: list[str] = []
+    if kind == "video":
+        sound_prompt = _build_sound_prompt(low, domain)
+        if float(duration) >= config.HEAVY_DURATION:
+            # parts[0] is the subject; parts[1:] are the shared
+            # clauses the two scene prompts inherit unchanged.
+            scenes = _build_scenes(subject, detail_clauses, parts[1:])
+
     return {
         "original": original,
         "translated": translated,
@@ -394,4 +553,6 @@ def enhance_prompt(
         "style": style,
         "domain": domain["id"] if domain else "",
         "kind": kind,
+        "sound_prompt": sound_prompt,
+        "scenes": scenes,
     }

@@ -125,6 +125,31 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
         _duration = 0.0
     d["heavy"] = bool(d["kind"] == "video"
                       and _duration >= config.HEAVY_DURATION)
+    # Sound bed + scene structure (video quality upgrade): derived
+    # here, never stored — the prompt engine is deterministic, so
+    # recomputing from the stored prompt/style/aspect/duration gives
+    # exactly what create-time enhancement produced, and jobs queued
+    # BEFORE these fields existed gain them retroactively. Video
+    # jobs only; every other kind carries the empty defaults, and
+    # the runner treats missing/empty values as "no sound/scene
+    # instructions" and falls back on its own.
+    d["sound_prompt"] = ""
+    d["scenes"] = []
+    if d["kind"] == "video":
+        try:
+            _extra = enhance_prompt(
+                d.get("prompt") or "",
+                style=d.get("style") or "cinematic",
+                aspect=d.get("aspect") or config.DEFAULT_ASPECT,
+                duration=_duration,
+                domain_id=d.get("domain") or None,
+                kind="video",
+            )
+            d["sound_prompt"] = _extra.get("sound_prompt", "")
+            d["scenes"] = _extra.get("scenes", [])
+        except Exception:
+            d["sound_prompt"] = ""
+            d["scenes"] = []
     # Series/agent jobs carry their project id; normal jobs are null.
     d["project_id"] = d.get("project_id") or None
     # Worker-mesh claim fields: who holds this job, and when the claim
@@ -169,6 +194,8 @@ def job_package(job: dict) -> dict:
         "height": job["height"],
         "duration": job["duration"],
         "heavy": bool(job.get("heavy", False)),
+        "sound_prompt": job.get("sound_prompt", ""),
+        "scenes": job.get("scenes", []),
         "num_frames": job["num_frames"],
         "fps": job["fps"],
         "steps": job["steps"],

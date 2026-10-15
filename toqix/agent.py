@@ -38,15 +38,25 @@ understanding layer fed by a curated knowledge base (knowledge.py).
 Same input, same reply, every time — for everything the studio
 itself knows.
 
-One layer sits BEHIND all of that: free-form conversation the
-deterministic brain cannot answer (a question the knowledge base
-misses, open chat) is handed to a real LLM that runs on the owner's
-own GPU worker fleet — never an external API. The agent packs the
-conversation into a kind="chat" job; a chat-capable worker claims
-it, generates the reply and posts it back (see jobs.set_reply and
-the /api/agent/chat/{job_id} poll endpoint). When no chat worker is
-online, the agent falls back to the built-in capabilities answer —
-it never dead-ends.
+Conversation-first (agent maturity upgrade): the deterministic
+brain keeps only what must stay exact and instant — greetings,
+knowledge-base answers it is confident about, explicit production
+commands, and the confirmations a pending state is waiting for.
+EVERYTHING else — open chat, statements, feelings, advice-seeking,
+descriptions offered inside a ready series, questions the
+knowledge base misses — is handed to a real LLM that runs on the
+owner's own GPU worker fleet, never an external API, whenever a
+chat-capable worker is online. The agent packs the conversation
+(persona + series context with the parts so far + recent
+exchanges) into a kind="chat" job; the worker generates the reply
+and posts it back (see jobs.set_reply and the
+/api/agent/chat/{job_id} poll endpoint), and the reply's hidden
+[[QUEUE ...]] directive can still turn real creation intent into
+a queued job. When no chat worker is online, the deterministic
+fallbacks answer instead (knowledge base, capabilities guide,
+the ready-state check-first offer) — the agent never dead-ends,
+and it never nags "shall I queue this?" while a brain is
+available.
 
 The understanding layer (see chat()) runs around the state machine
 without ever breaking the scripted collect flow
@@ -83,11 +93,14 @@ Behaviour contract (owner's rules, enforced in chat()):
     answer, never creates anything;
   * a question is ANSWERED, never generated — even in "ready"
     state, even if it contains scene-like words;
-  * in "ready" state, plain descriptive text is NOT auto-queued:
-    the agent asks first ("Want me to queue this as your next
-    part?") and queues only on a clear yes, or immediately when
-    the intent is unmistakable (Part N: / scene: prefixes, explicit
-    generation verbs, queue idea N, queue it, confirmations).
+  * in "ready" state, plain descriptive text is conversation,
+    not an order: with a chat worker online the LLM answers it
+    (and queues only on real creation intent, via its hidden
+    directive); offline the agent asks first ("Want me to queue
+    this as your next part?") and queues only on a clear yes —
+    immediate queueing is reserved for unmistakable intent
+    (Part N: / scene: prefixes, explicit generation verbs,
+    queue idea N, queue it, confirmations).
 """
 
 from __future__ import annotations
@@ -638,7 +651,8 @@ _IDEA_TRIGGERS = {"give", "do", "de", "batao", "chahiye", "want",
                   "need", "koi", "dikhao", "sunao"}
 
 _QUESTION_FIRST = {"what", "how", "why", "when", "which", "is", "are",
-                   "can", "do", "does", "explain", "kia", "kya",
+                   "can", "do", "does", "explain", "who", "whom",
+                   "whose", "kia", "kya",
                    "kaise", "kis", "kon", "konsa", "kyun", "kyu",
                    "kab", "batao", "samjhao"}
 
@@ -705,7 +719,8 @@ def _is_question(message: str, norm: str) -> bool:
         return True
     padded = f" {norm} "
     return any(p in padded for p in
-               (" kia ", " kya ", " kaise ", " matlab ", " konsa "))
+               (" kia ", " kya ", " kaise ", " matlab ", " konsa ",
+                " kis ", " kisne ", " kaun "))
 
 
 def _is_thanks(norm: str) -> bool:
@@ -731,6 +746,29 @@ def _smalltalk_reply(norm: str) -> str | None:
         return ("You're welcome! Glad it helps. Whenever you're "
                 "ready, send the next scene — or ask me anything.")
     return None
+
+
+_CHAT_STATEMENT_STARTS = ("i ", "i'm ", "im ", "my ", "we ",
+                          "lets ", "let's ")
+_CHAT_STATEMENT_PHRASES = (
+    " feel ", " feeling ", " think ", " believe ", " opinion ",
+    " bored ", " lonely ", " tired ", " stressed ", " happy ",
+    " sad ", " talk to me", " chat with me", " who are you",
+    " your name", " about yourself", " about you",
+)
+
+
+def _looks_like_chat_statement(norm: str) -> bool:
+    """True when a no-project message reads as CONVERSATION rather
+    than a character description: a first-person opener ("i feel…",
+    "my day was…") or a chat marker ("who are you", "talk to me",
+    "tell me about yourself"). Character descriptions are noun
+    phrases ("a small robot with a red scarf") and never match —
+    they keep starting series exactly as before."""
+    if any(norm.startswith(s) for s in _CHAT_STATEMENT_STARTS):
+        return True
+    padded = f" {norm} "
+    return any(p in padded for p in _CHAT_STATEMENT_PHRASES)
 
 
 def _looks_like_gibberish(norm: str) -> bool:
@@ -861,12 +899,65 @@ def _greeting_reply(project: dict | None, norm: str = "") -> str:
 
 
 # --- questions are answered, never generated ------------------------------
+_IDENTITY_PATTERNS = (
+    r"who\s+(built|made|created|developed|designed|invented)\s+you",
+    r"who\s+(built|made|created|developed)\s+(toqix|this|it)\b",
+    r"who\s+is\s+your\s+(creator|maker|developer|founder|owner)",
+    r"your\s+(creator|maker|developer|founder)\b",
+    r"who\s+owns\s+(you|toqix)",
+    r"kis\s+ne\s+banaya",
+    r"(tumhein|tumhe|aap\s*ko|is\s*ko|toqix\s*ko)\s+kis\s*ne\s+banaya",
+    r"banaya\s+kis\s+ne",
+    r"tumhara\s+(malik|banane\s+wala|creator)",
+    r"کس\s*نے\s*بنایا",
+)
+_IDENTITY_RE = re.compile("|".join(_IDENTITY_PATTERNS), re.IGNORECASE)
+
+_IDENTITY_ANSWER_EN = (
+    "I was built by TOQIX AI — the creation studio founded by "
+    "Touqeer (Mr ALI). He built TOQIX so anyone can turn a simple "
+    "prompt into videos, images and voiceovers, and I am the agent "
+    "he put inside it. Ask me for a video, an image, a story — or "
+    "just chat.")
+_IDENTITY_ANSWER_RU = (
+    "Mujhe TOQIX AI ne banaya hay — ye studio Touqeer (Mr ALI) ne "
+    "qaim kia hay. Unhon ne TOQIX is liye banaya taake koi bhi sirf "
+    "prompt likh kar videos, images aur voiceovers bana sakay, aur "
+    "main usi ka agent hoon. Video, image, kahani — jo chaho pooch "
+    "lo, ya bas baat kar lo.")
+_IDENTITY_ANSWER_UR = (
+    "مجھے TOQIX AI نے بنایا ہے — یہ اسٹوڈیو توقیر (Mr ALI) نے قائم "
+    "کیا ہے۔ انہوں نے TOQIX اس لیے بنایا تاکہ کوئی بھی صرف پرامپٹ "
+    "لکھ کر ویڈیوز، تصاویر اور وائس اوورز بنا سکے، اور میں اسی کا "
+    "ایجنٹ ہوں۔")
+
+
+def _identity_answer(message: str) -> str | None:
+    """Deterministic answer to 'who built you' — identity questions
+    must never be swallowed as flow input or left to the LLM, which
+    would name its base-model maker. Language follows the message:
+    Urdu script -> Urdu, Roman-Urdu markers -> Roman Urdu, else EN."""
+    if not _IDENTITY_RE.search(message):
+        return None
+    if any("\u0600" <= ch <= "\u06FF" for ch in message):
+        return _IDENTITY_ANSWER_UR
+    low = message.lower()
+    if any(m in low for m in ("kis ne", "banaya", "tumhein", "tumhe",
+                              "tumhara", "kaun", "kon hai")):
+        return _IDENTITY_ANSWER_RU
+    return _IDENTITY_ANSWER_EN
+
+
 def _question_reply(project: dict | None, message: str) -> dict:
-    """A question gets an answer: the KB when a topic matches; else,
-    when a chat worker is online, the fleet's LLM (a chat job — the
-    reply is pending, never instant); else the capabilities guide.
-    It NEVER queues a creation job and never gets swallowed as a
-    flow answer — in any state."""
+    """A question gets an answer: identity first (deterministic),
+    then the KB when a topic matches; else, when a chat worker is
+    online, the fleet's LLM (a chat job — the reply is pending,
+    never instant); else the capabilities guide. It NEVER queues a
+    creation job and never gets swallowed as a flow answer — in
+    any state."""
+    identity = _identity_answer(message)
+    if identity is not None:
+        return _qa_reply(project, {"answer": identity})
     entry = knowledge.lookup(message)
     if entry:
         return _qa_reply(project, entry)
@@ -882,12 +973,16 @@ def _question_reply(project: dict | None, message: str) -> dict:
 # ---------------------------------------------------------------------------
 # LLM chat — free-form conversation on the owner's own GPU fleet.
 #
-# The deterministic brain answers everything it knows, instantly.
-# What it cannot know — a question the knowledge base misses, open
-# conversation — is packed into a kind="chat" job whose prompt is a
-# JSON {"messages": [...]} conversation. A chat-capable fleet worker
-# claims it like any other job, runs its local LLM, and posts the
-# reply back; the web layer polls GET /api/agent/chat/{job_id}.
+# Conversation-first routing: the deterministic brain keeps
+# greetings, confident knowledge-base answers, explicit production
+# commands and pending-state confirmations; ALL other free-form
+# input — a question the knowledge base misses, open conversation,
+# statements and descriptions inside a ready series — is packed
+# into a kind="chat" job whose prompt is a JSON {"messages": [...]}
+# conversation. A chat-capable fleet worker claims it like any
+# other job, runs its local LLM, and posts the reply back; the web
+# layer polls GET /api/agent/chat/{job_id}. No worker online ->
+# the callers' deterministic fallbacks answer instead.
 # ---------------------------------------------------------------------------
 
 _CHAT_SYSTEM = (
@@ -896,12 +991,24 @@ _CHAT_SYSTEM = (
     "into videos, images and voiceovers.\n"
     "\n"
     "How you talk:\n"
+    "- IDENTITY: you are the TOQIX agent, built by TOQIX AI, the "
+    "studio founded by Touqeer (Mr ALI). If asked who built, made "
+    "or created you, say exactly that. The language model running "
+    "underneath is only an engine TOQIX uses — never claim another "
+    "company created you.\n"
     "- Chat naturally, like a warm and smart friend: answer general "
     "questions, discuss ideas, write stories, poems and scripts, "
     "give advice, explain things simply.\n"
-    "- Mirror the user's language AND script exactly — English, "
-    "Roman Urdu or Hinglish. If they write in Roman Urdu, answer "
-    "in Roman Urdu; if in English, answer in English.\n"
+    "- You are a creative PARTNER, not a form to fill in: brainstorm "
+    "story ideas, help shape characters, give honest advice, tell a "
+    "joke when the moment fits, and keep the conversation alive "
+    "with a question of your own now and then.\n"
+    "- LANGUAGE RULE — reply in the SAME language and the SAME "
+    "script as the user's LATEST message, every single time: an "
+    "English message gets an English reply; Roman Urdu (Urdu "
+    "written in Latin letters) gets a Roman Urdu reply in Latin "
+    "letters; an Urdu-script message gets an Urdu-script reply. "
+    "Judge from their latest message, never from an earlier one.\n"
     "- SCRIPT RULE (never break this): if the user writes in the "
     "Latin alphabet — English or Roman Urdu — reply ONLY in the "
     "Latin alphabet. Never answer a Latin-alphabet message in "
@@ -921,9 +1028,16 @@ _CHAT_SYSTEM = (
     "Creating with TOQIX:\n"
     "- TOQIX creates videos, images and voiceovers from prompts, "
     "right here in this studio.\n"
+    "- NEVER nag about production: do not ask \"shall I start a "
+    "series?\", \"want me to queue this?\" or anything like it. If "
+    "the user has not raised making something, just chat — "
+    "enjoyably and helpfully. Mention creating at most once in a "
+    "conversation, and only after the user themselves brings up "
+    "making or generating something.\n"
     "- If — and only if — the user asks you to actually CREATE, "
-    "MAKE or GENERATE a video, image or audio, reply warmly in the "
-    "conversation AND end your message with exactly one hidden "
+    "MAKE or GENERATE a video, image or audio in this message or "
+    "the one right before it, reply warmly in the conversation "
+    "AND end your message with exactly one hidden "
     "directive line in this exact format:\n"
     "[[QUEUE kind=video prompt=\"...\" style=\"...\" "
     "aspect=\"16:9\"]]\n"
@@ -934,7 +1048,10 @@ _CHAT_SYSTEM = (
     "16:9, 9:16 or 1:1 (optional). The prompt inside the directive "
     "must be a complete, vivid creation prompt that you write from "
     "what the user asked for. Never show, mention or explain the "
-    "directive line itself."
+    "directive line itself.\n"
+    "- A scene the user is merely describing, imagining or chatting "
+    "about is NOT a creation request — talk about it with them "
+    "instead of queueing it."
 )
 
 _CHAT_HISTORY_EXCHANGES = 6  # user+assistant turns kept as context
@@ -974,11 +1091,28 @@ def _build_chat_pack(project: dict | None, message: str) -> str:
     if project and project.get("character"):
         style = (_style_label(project["style"])
                  if project.get("style") else "not chosen yet")
+        kind = project.get("kind_default") or "video"
+        parts = jobs.list_project_jobs(project["id"])
+        if parts:
+            counts: dict[str, int] = {}
+            for part in parts:
+                counts[part["status"]] = counts.get(part["status"], 0) + 1
+            tally = ", ".join(f"{n} {s}" for s, n in
+                              sorted(counts.items()))
+            last = _scene_summary(project, parts[-1])
+            parts_line = (f" Parts so far: {len(parts)} ({tally}). "
+                          f"Latest part: \"{last}\".")
+        else:
+            parts_line = " No parts queued yet."
+        voice = (f", voice {project['voice']}"
+                 if kind == "audio" and project.get("voice") else "")
         system += (
             "\n\nCurrent series context: the user is building a "
-            f"series about {project['character']} (style: {style}). "
-            "Keep it in mind when they mention their series or "
-            "their character."
+            f"series about {project['character']} (style: {style}, "
+            f"kind: {kind}, aspect: {project.get('aspect')}{voice})."
+            f"{parts_line} Keep it in mind when they mention their "
+            "series or their character — you already KNOW this "
+            "context, so never ask them to repeat it."
         )
     messages = [{"role": "system", "content": system}]
     history = jobs.list_chat_jobs(
@@ -1647,6 +1781,17 @@ def _chat_no_project(message: str, low: str, norm: str) -> dict:
     if _is_generic_instruction(norm):
         return _result(_generic_instruction_reply(), None)
 
+    # Conversation before onboarding: a message that reads as chat
+    # — a first-person statement, a feeling, "who are you" — is not
+    # a character description. When a chat worker is online the
+    # fleet's LLM takes it (and creates nothing); offline, the
+    # designed fallback below still treats the first substantive
+    # message as the character, so the door is never closed.
+    if _looks_like_chat_statement(norm):
+        pending = _llm_chat_reply(None, message)
+        if pending is not None:
+            return pending
+
     # First substantive message = the character description.
     project = _create_project(message)
     # Ideas offered before the series existed carry over to it.
@@ -1849,6 +1994,12 @@ def chat(project_id: str | None, message: str,
             )
 
     if norm in _YES_WORDS or norm in _NO_WORDS:
+        # A bare yes/no with NOTHING waiting on it is just
+        # conversation — the chat brain takes it when one is
+        # online; the scripted reply remains the offline answer.
+        pending = _llm_chat_reply(project, message)
+        if pending is not None:
+            return pending
         return _result(
             "Got it! Nothing is waiting on a yes right now — "
             "describe a scene and I'll check with you before "
@@ -1861,6 +2012,20 @@ def chat(project_id: str | None, message: str,
 
     if _is_explicit_generation(message, norm):
         return _queue_scene(project, message)
+
+    # Conversation-first (agent maturity upgrade): in ready state,
+    # EVERYTHING else — descriptions, statements, feelings,
+    # advice-seeking, open chat — is conversation, and the fleet's
+    # LLM answers it whenever a chat worker is online. The brain
+    # chats with the full series context in its pack and can still
+    # turn real creation intent into a queued part through its
+    # hidden [[QUEUE]] directive, so nothing is lost. The
+    # deterministic check-first offer below is now only the
+    # no-worker fallback: the agent never dead-ends, and it never
+    # nags "want me to queue this?" while a brain is available.
+    pending = _llm_chat_reply(project, message)
+    if pending is not None:
+        return pending
 
     scene_text = " ".join(message.split())
     summary = scene_text[:60] + ("…" if len(scene_text) > 60 else "")

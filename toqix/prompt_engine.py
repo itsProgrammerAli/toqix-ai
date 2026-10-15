@@ -208,6 +208,79 @@ def _match_rules(rules, text: str):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Accuracy layer (v2) — the flag lesson. Small video models garble things
+# that have ONE correct real-world form: national flags, emblems, written
+# text. When a prompt touches one, spell the correct form out element by
+# element inside the prompt itself; it measurably raises the hit rate, and
+# the QA gate (frame-check, regenerate-once) catches the rest.
+# ---------------------------------------------------------------------------
+
+_FLAG_DESIGNS = [
+    (("pakistan",), "the flag of Pakistan, shown accurately: a dark green flag with a white vertical stripe along the hoist side and a large white crescent moon and white five-pointed star centered in the green field, correct colors, correct design"),
+    (("india", "indian", "tiranga"), "the flag of India, shown accurately: three horizontal bands of deep saffron orange on top, white in the middle and green at the bottom, with a navy-blue 24-spoke Ashoka Chakra wheel in the center of the white band, correct colors, correct design"),
+    (("america", "american", "usa", "united states"), "the flag of the United States, shown accurately: thirteen horizontal red and white stripes with a blue canton in the top-left corner containing white stars, correct colors, correct design"),
+    (("britain", "british", "uk", "united kingdom", "union jack"), "the Union Jack flag of the United Kingdom, shown accurately: a blue field with red and white diagonal and straight crosses combined, correct colors, correct design"),
+    (("japan", "japanese"), "the flag of Japan, shown accurately: a plain white flag with one solid red circle exactly in the center, correct colors, correct design"),
+    (("china", "chinese"), "the flag of China, shown accurately: a solid red flag with five golden-yellow stars in the top-left corner, one large star and four smaller stars, correct colors, correct design"),
+    (("turkey", "turkish"), "the flag of Turkey, shown accurately: a solid red flag with a white crescent moon and a white five-pointed star, correct colors, correct design"),
+    (("saudi",), "the flag of Saudi Arabia, shown accurately: a solid green flag with white Arabic calligraphy above a white horizontal sword, correct colors, correct design"),
+    (("uae", "emirates", "dubai"), "the flag of the United Arab Emirates, shown accurately: three horizontal bands of green, white and black with a red vertical band at the hoist side, correct colors, correct design"),
+    (("canada", "canadian"), "the flag of Canada, shown accurately: a white flag with red vertical bars on both sides and one red maple leaf exactly in the center, correct colors, correct design"),
+    (("france", "french"), "the flag of France, shown accurately: three equal vertical bands of blue, white and red, correct colors, correct design"),
+    (("germany", "german"), "the flag of Germany, shown accurately: three equal horizontal bands of black, red and gold-yellow, correct colors, correct design"),
+    (("italy", "italian"), "the flag of Italy, shown accurately: three equal vertical bands of green, white and red, correct colors, correct design"),
+    (("brazil", "brazilian"), "the flag of Brazil, shown accurately: a green flag with a large yellow diamond in the center holding a blue globe with white stars and a white banner, correct colors, correct design"),
+    (("australia", "australian"), "the flag of Australia, shown accurately: a dark blue flag with the Union Jack in the top-left corner and white stars including one large seven-pointed star, correct colors, correct design"),
+    (("palestine", "palestinian"), "the flag of Palestine, shown accurately: three horizontal bands of black, white and green with a red triangle at the hoist side, correct colors, correct design"),
+    (("bangladesh",), "the flag of Bangladesh, shown accurately: a green flag with one large red circle slightly left of center, correct colors, correct design"),
+]
+
+_TEXT_KEYWORDS = (
+    "text", "written", "writing", "words that say", "sign that says",
+    "signboard", "logo", "caption", "title card", "likha", "likho",
+)
+
+_SUBJECT_KEYWORDS = (
+    "panda", "robot", "cat", "dog", "elephant", "lion", "tiger", "fox",
+    "owl", "penguin", "whale", "horse", "astronaut", "boy", "girl",
+    "man", "woman", "baby", "child", "billi", "kutta", "haathi",
+)
+
+
+def _detail_clauses(low: str) -> tuple[list[str], bool]:
+    """Element-by-element accuracy clauses for a lowercased prompt.
+
+    Returns (clauses, wants_text): clauses are appended to the visual
+    prompt; wants_text means the negative prompt must stop banning
+    text/logos because the user actually asked for them."""
+    clauses: list[str] = []
+    if "flag" in low or "jhanda" in low or "parcham" in low:
+        design = _match_rules(_FLAG_DESIGNS, low)
+        if design:
+            clauses.append(design)
+        else:
+            clauses.append(
+                "the flag shown clearly, waving naturally, with its "
+                "correct real-world colors and design"
+            )
+    wants_text = any(k in low for k in _TEXT_KEYWORDS)
+    if wants_text:
+        clauses.append(
+            "any text or lettering shown is crisp, correctly spelled, "
+            "fully legible and exactly as requested"
+        )
+    subject = _match_rules(
+        [( (k,), k) for k in _SUBJECT_KEYWORDS], low
+    )
+    if subject:
+        clauses.append(
+            f"one single {subject} as the main subject, identical "
+            "appearance, colors and proportions in every frame"
+        )
+    return clauses, wants_text
+
+
 def enhance_prompt(
     user_prompt: str,
     style: str = DEFAULT_STYLE,
@@ -282,6 +355,8 @@ def enhance_prompt(
     parts.append(preset["tokens"])
     if domain:
         parts.append(domain["extra_tokens"])
+    detail_clauses, wants_text = _detail_clauses(low)
+    parts.extend(detail_clauses)
     if kind == "image":
         # Still image: no motion language.
         parts.append("high quality, sharp details, crisp focus, rich detail")
@@ -299,6 +374,9 @@ def enhance_prompt(
     enhanced = enhanced[0].upper() + enhanced[1:] + "."
 
     negative = _BASE_NEGATIVE
+    if wants_text:
+        # The user asked FOR text/a logo: stop banning what was requested.
+        negative = negative.replace("watermark, logo, text, ", "")
     if style == "photorealistic":
         negative += ", cartoon, anime, CGI look, plastic skin"
     elif style == "anime":
@@ -309,6 +387,7 @@ def enhance_prompt(
         "translated": translated,
         "enhanced_prompt": enhanced,
         "negative_prompt": negative,
+        "detail_notes": detail_clauses,
         "camera": camera,
         "lighting": lighting,
         "mood": mood or "",

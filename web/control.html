@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TOQIX Control Room</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .cr-wrap { max-width: 1280px; margin: 0 auto; padding: 96px 16px 60px; position: relative; z-index: 1; }
+  .cr-tag { font-size: 11px; font-weight: 800; letter-spacing: .14em; color: #0b0b10;
+    background: linear-gradient(90deg, #a78bfa, #22d3ee);
+    padding: 3px 9px; border-radius: 999px; vertical-align: 3px; margin-left: 6px; }
+  .hdr-right { display: flex; align-items: center; gap: 16px; font-size: 13.5px; }
+  #conn { display: flex; align-items: center; gap: 7px; color: rgba(255,255,255,.6);
+    font-weight: 700; letter-spacing: .06em; font-size: 11.5px; }
+  #conn-dot { width: 9px; height: 9px; border-radius: 50%; background: #f5b544;
+    box-shadow: 0 0 8px #f5b544; display: inline-block; }
+  #conn.on #conn-dot { background: #35e0a1; box-shadow: 0 0 9px #35e0a1; }
+  #conn.off #conn-dot { background: #ff5f5f; box-shadow: 0 0 9px #ff5f5f; }
+  #clock { font-variant-numeric: tabular-nums; color: rgba(255,255,255,.85); font-weight: 600; }
+  .logout { color: #9fd8ff; text-decoration: none; font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat { padding: 16px; border-radius: 16px; }
+  .stat .n { font-size: 28px; font-weight: 800; }
+  .stat .l { font-size: 12.5px; color: rgba(255,255,255,.55); margin-top: 2px; }
+  .stat.bad .n { color: #ff9c9c; }
+  .cr-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .cr-grid { grid-template-columns: 1fr; } }
+  .panel { padding: 18px; border-radius: 18px; }
+  .panel h2 { font-size: 16px; margin: 0 0 6px; letter-spacing: .02em; }
+  .stage-zone { margin-top: 14px; }
+  .stage-zone h3 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .12em;
+    color: rgba(255,255,255,.45); margin: 0 0 4px; font-weight: 700; }
+  .unit-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .empty-note { color: rgba(255,255,255,.4); font-size: 13.5px; padding: 14px 4px; }
+
+  /* ---------- the units (2D characters) ---------- */
+  .unit { --acc: #22d3ee; position: relative; width: 168px; padding: 26px 10px 12px;
+    border-radius: 16px; text-align: center;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border: 1px solid rgba(255,255,255,.1); }
+  .unit.wide { width: 262px; }
+  .unit.plat-kaggle { --acc: #22d3ee; }
+  .unit.plat-colab { --acc: #f5a544; }
+  .unit.plat-local { --acc: #a78bfa; }
+  .char { height: 104px; display: flex; align-items: flex-end; justify-content: center; }
+  .char.sm { height: 74px; }
+  .char-svg { height: 100%; width: auto; overflow: visible;
+    animation: bob 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .unit.st-busy .char-svg, .unit.st-awake .char-svg { animation-duration: .95s; }
+  .unit.st-off .char-svg, .unit.st-none .char-svg, .unit.st-sleep .char-svg { animation-duration: 5.5s; }
+  .unit.st-off .char, .unit.st-none .char { filter: grayscale(1) brightness(.62); }
+  .unit.st-sleep .char { filter: brightness(.72) saturate(.6); }
+  .unit.st-error .char { filter: saturate(1.1); }
+
+  .platform { height: 12px; margin: 2px 14px 0; border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,.28), rgba(255,255,255,.05) 70%); }
+  .unit.st-busy .platform, .unit.st-awake .platform {
+    background: radial-gradient(ellipse at center, var(--acc), rgba(255,255,255,.04) 72%);
+    animation: platPulse 1.6s ease-in-out infinite; }
+  @keyframes platPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+  .unit.st-error .platform {
+    background: radial-gradient(ellipse at center, rgba(255,80,80,.85), rgba(255,255,255,.04) 72%);
+    animation: errPulse 1.15s ease-out infinite; }
+  @keyframes errPulse {
+    0% { box-shadow: 0 0 0 0 rgba(255,80,80,.55); }
+    70% { box-shadow: 0 0 0 13px rgba(255,80,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,80,80,0); } }
+
+  /* robot parts */
+  .antenna, .mic, .headset, .staff { stroke: #8b93b8; stroke-width: 3; stroke-linecap: round; }
+  .tip { fill: #565d7d; }
+  .unit.st-idle .tip, .unit.st-busy .tip, .unit.st-ok .tip, .unit.st-awake .tip {
+    fill: var(--acc); filter: drop-shadow(0 0 5px var(--acc)); }
+  .head, .hbody { fill: #2b3049; stroke: var(--acc); stroke-width: 2; }
+  .body { fill: #232842; stroke: var(--acc); stroke-width: 2; }
+  .ear, .neck, .base, .hbase { fill: #3a4062; }
+  .eye { fill: #eaf6ff; transform-box: fill-box; transform-origin: center;
+    animation: blink 4.4s infinite; }
+  @keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.08); } }
+  .mouth { fill: #8b93b8; }
+  .core { fill: var(--acc); opacity: .8; transform-box: fill-box; transform-origin: center; }
+  .unit.st-busy .core { animation: corePulse 1s ease-in-out infinite; }
+  @keyframes corePulse { 0%, 100% { transform: scale(1); opacity: .7; }
+    50% { transform: scale(1.28); opacity: 1; } }
+  .arm { fill: #2b3049; stroke: var(--acc); stroke-width: 1.6; transform-box: fill-box; }
+  .arm-l { transform-origin: 50% 10%; } .arm-r { transform-origin: 50% 10%; }
+  .unit.st-busy .arm-l { animation: swing .9s ease-in-out infinite; }
+  .unit.st-busy .arm-r { animation: swing .9s ease-in-out infinite reverse; }
+  @keyframes swing { 0%, 100% { transform: rotate(10deg); } 50% { transform: rotate(-10deg); } }
+
+  /* operator parts */
+  .face { fill: #f2c79b; }
+  .cap { fill: #31456e; } .cap-brim { fill: #22345a; }
+  .pad { fill: #1d2338; stroke: var(--acc); stroke-width: 1.4; }
+  .torso { fill: #31456e; }
+  .desk { fill: #1d2338; stroke: rgba(255,255,255,.16); }
+  .screen { fill: #10182e; stroke: var(--acc); stroke-width: 1.6; }
+  .screen-line { fill: #57e6c9; opacity: .75; }
+  .lamp { fill: #565d7d; }
+  .unit.st-ok .lamp { fill: #35e0a1; filter: drop-shadow(0 0 6px #35e0a1); }
+  .unit.st-error .lamp { fill: #ff5f5f; filter: drop-shadow(0 0 6px #ff5f5f); }
+
+  /* wizard parts */
+  .hat { fill: #4b3482; stroke: #a78bfa; stroke-width: 1.6; }
+  .hat-brim { fill: #3a2866; }
+  .beard { fill: #e8e6df; }
+  .robe { fill: #3a2866; stroke: #a78bfa; stroke-width: 1.6; }
+  .orb { fill: #565d7d; }
+  .unit.st-awake .orb { fill: #c9b8ff; filter: drop-shadow(0 0 9px #a78bfa);
+    animation: corePulse 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+  /* helper bot parts */
+  .dome { fill: #2b3049; stroke: var(--acc); stroke-width: 2; }
+
+  .bubble { position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+    background: rgba(240,248,255,.95); color: #141824; font-size: 11px; font-weight: 800;
+    letter-spacing: .04em; padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0,0,0,.4); z-index: 2; }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -5px;
+    transform: translateX(-50%); border: 5px solid transparent;
+    border-top-color: rgba(240,248,255,.95); border-bottom: 0; }
+  .uname { font-weight: 700; font-size: 13.5px; margin-top: 7px; word-break: break-all; }
+  .utags { display: flex; gap: 6px; justify-content: center; align-items: center;
+    flex-wrap: wrap; margin-top: 4px; }
+  .tag { font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 2px 7px;
+    border-radius: 999px; color: #0b0b10; background: var(--acc); }
+  .caps { font-size: 11px; color: rgba(255,255,255,.5); }
+  .udetail { font-size: 12px; color: rgba(255,255,255,.62); margin-top: 5px;
+    min-height: 15px; word-break: break-word; }
+  .ustatus { font-size: 11.5px; font-weight: 700; margin-top: 3px; color: rgba(255,255,255,.8); }
+  .unit.st-off .ustatus, .unit.st-none .ustatus, .unit.st-sleep .ustatus { color: rgba(255,255,255,.45); }
+  .unit.st-error .ustatus { color: #ff9c9c; }
+  .bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,.12);
+    margin: 8px 8px 0; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 999px; background: var(--acc);
+    transition: width .6s ease; }
+  .zzz { position: absolute; top: 8px; right: 12px; color: rgba(200,215,255,.75);
+    font-weight: 800; pointer-events: none; }
+  .zzz span { position: absolute; opacity: 0; animation: zFloat 2.8s linear infinite; }
+  .zzz span:nth-child(2) { animation-delay: .9s; font-size: 13px; }
+  .zzz span:nth-child(3) { animation-delay: 1.8s; font-size: 16px; }
+  .zzz span:nth-child(1) { font-size: 11px; }
+  @keyframes zFloat { 0% { transform: translate(0, 6px); opacity: 0; }
+    25% { opacity: .9; } 100% { transform: translate(9px, -18px); opacity: 0; } }
+
+  /* ---------- activity feed ---------- */
+  .feed-panel { max-height: 880px; overflow: auto; }
+  .feed-item { display: flex; gap: 10px; padding: 10px 2px;
+    border-bottom: 1px solid rgba(255,255,255,.07); font-size: 13px; }
+  .feed-item:last-child { border-bottom: 0; }
+  .fdot { flex: none; width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; background: #8b93b8; }
+  .fdot.done { background: #35e0a1; } .fdot.failed { background: #ff5f5f; }
+  .fdot.generating { background: #f5b544; box-shadow: 0 0 7px #f5b544; }
+  .fdot.queued, .fdot.exported { background: #57a8ff; }
+  .fdot.cancelled { background: #565d7d; }
+  .fmain { min-width: 0; }
+  .ftitle { font-weight: 700; font-size: 12px; letter-spacing: .05em; }
+  .ftitle .fst { color: rgba(255,255,255,.55); font-weight: 600; }
+  .fprompt { color: rgba(255,255,255,.78); word-break: break-word; margin-top: 1px; }
+  .fmeta { color: rgba(255,255,255,.42); font-size: 11.5px; margin-top: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
+<header class="topbar glass">
+  <div class="logo">TOQIX<span>AI</span><span class="cr-tag">CONTROL ROOM</span></div>
+  <div class="hdr-right">
+    <span id="conn"><i id="conn-dot"></i><span id="conn-txt">CONNECTING</span></span>
+    <span id="clock">--:--:--</span>
+    <a class="logout" href="/control/logout">Log out</a>
+  </div>
+</header>
+
+<main class="cr-wrap">
+  <div class="cards" id="cards"></div>
+  <div class="cr-grid">
+    <section class="panel glass">
+      <h2>&#127918; The Stage</h2>
+      <div class="stage-zone"><h3>GPU Fleet</h3><div class="unit-row" id="workers"></div></div>
+      <div class="stage-zone"><h3>Command</h3><div class="unit-row" id="command"></div></div>
+      <div class="stage-zone"><h3>Systems Bay</h3><div class="unit-row" id="systems"></div></div>
+    </section>
+    <aside class="panel glass feed-panel">
+      <h2>&#128225; Activity Feed</h2>
+      <div id="feed"></div>
+    </aside>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function ago(s) {
+    if (s == null) return "—";
+    s = Math.max(0, Math.round(s));
+    if (s < 8) return "just now";
+    if (s < 60) return s + "s ago";
+    if (s < 3600) return Math.round(s / 60) + "m ago";
+    if (s < 86400) return Math.round(s / 3600) + "h ago";
+    return Math.round(s / 86400) + "d ago";
+  }
+
+  /* ---------------- character art (pure SVG, zero assets) ---------------- */
+  function robotSVG() {
+    return '<svg class="char-svg" viewBox="0 0 120 132" aria-hidden="true">'
+      + '<line class="antenna" x1="60" y1="24" x2="60" y2="11"/>'
+      + '<circle class="tip" cx="60" cy="8" r="5"/>'
+      + '<rect class="ear" x="21" y="38" width="7" height="18" rx="3.5"/>'
+      + '<rect class="ear" x="92" y="38" width="7" height="18" rx="3.5"/>'
+      + '<rect class="head" x="29" y="24" width="62" height="46" rx="13"/>'
+      + '<circle class="eye" cx="48" cy="44" r="5.5"/>'
+      + '<circle class="eye" cx="72" cy="44" r="5.5"/>'
+      + '<rect class="mouth" x="50" y="59" width="20" height="4" rx="2"/>'
+      + '<rect class="neck" x="54" y="70" width="12" height="6"/>'
+      + '<rect class="arm arm-l" x="15" y="78" width="11" height="32" rx="5.5"/>'
+      + '<rect class="arm arm-r" x="94" y="78" width="11" height="32" rx="5.5"/>'
+      + '<rect class="body" x="33" y="76" width="54" height="40" rx="11"/>'
+      + '<circle class="core" cx="60" cy="95" r="8.5"/>'
+      + '<rect class="base" x="42" y="118" width="36" height="8" rx="4"/>'
+      + '</svg>';
+  }
+  function operatorSVG() {
+    return '<svg class="char-svg" viewBox="0 0 120 132" aria-hidden="true">'
+      + '<path class="torso" d="M40 120 v-32 a20 13 0 0 1 40 0 v32 z"/>'
+      + '<circle class="face" cx="60" cy="33" r="16"/>'
+      + '<path class="cap" d="M43 29 a17 15 0 0 1 34 0 z"/>'
+      + '<rect class="cap-brim" x="39" y="28" width="42" height="5" rx="2.5"/>'
+      + '<path class="headset" d="M42 35 a18 17 0 0 1 36 0" fill="none"/>'
+      + '<rect class="pad" x="39" y="33" width="7" height="13" rx="3.5"/>'
+      + '<rect class="pad" x="74" y="33" width="7" height="13" rx="3.5"/>'
+      + '<path class="mic" d="M77 45 q3 10 -9 12" fill="none"/>'
+      + '<circle class="tip" cx="65" cy="57" r="2.6"/>'
+      + '<circle class="eye" cx="54" cy="35" r="2.4"/>'
+      + '<circle class="eye" cx="66" cy="35" r="2.4"/>'
+      + '<rect class="screen" x="36" y="64" width="48" height="36" rx="4"/>'
+      + '<rect class="screen-line" x="43" y="72" width="24" height="4" rx="2"/>'
+      + '<rect class="screen-line" x="43" y="81" width="33" height="4" rx="2"/>'
+      + '<rect class="screen-line" x="43" y="90" width="18" height="4" rx="2"/>'
+      + '<rect class="desk" x="10" y="102" width="100" height="12" rx="5"/>'
+      + '<circle class="lamp" cx="99" cy="95" r="4.5"/>'
+      + '</svg>';
+  }
+  function wizardSVG() {
+    return '<svg class="char-svg" viewBox="0 0 120 132" aria-hidden="true">'
+      + '<line class="staff" x1="93" y1="42" x2="93" y2="122"/>'
+      + '<circle class="orb" cx="93" cy="33" r="9.5"/>'
+      + '<path class="robe" d="M36 126 l11 -46 h26 l11 46 z"/>'
+      + '<path class="beard" d="M49 66 q11 15 22 0 l-5 19 q-6 5 -12 0 z"/>'
+      + '<circle class="face" cx="60" cy="58" r="13"/>'
+      + '<circle class="eye" cx="55" cy="57" r="2.2"/>'
+      + '<circle class="eye" cx="65" cy="57" r="2.2"/>'
+      + '<polygon class="hat" points="60,2 39,45 81,45"/>'
+      + '<ellipse class="hat-brim" cx="60" cy="46" rx="28" ry="6"/>'
+      + '</svg>';
+  }
+  function helperSVG() {
+    return '<svg class="char-svg" viewBox="0 0 80 84" aria-hidden="true">'
+      + '<line class="antenna" x1="40" y1="18" x2="40" y2="9"/>'
+      + '<circle class="tip" cx="40" cy="6" r="3.5"/>'
+      + '<path class="dome" d="M14 45 a26 25 0 0 1 52 0 z"/>'
+      + '<rect class="hbody" x="14" y="45" width="52" height="23" rx="9"/>'
+      + '<circle class="eye" cx="40" cy="54" r="6"/>'
+      + '<ellipse class="hbase" cx="40" cy="75" rx="20" ry="5"/>'
+      + '</svg>';
+  }
+  var ZZ = '<div class="zzz"><span>z</span><span>z</span><span>Z</span></div>';
+
+  /* ---------------- rendering ---------------- */
+  function renderCards(state) {
+    var q = state.queue || {};
+    var online = (state.workers || []).filter(function (w) { return w.online; }).length;
+    var cards = [
+      [online, "Workers Online", ""],
+      [q.queued || 0, "In Queue", ""],
+      [q.generating || 0, "Generating", ""],
+      [q.done_today || 0, "Done Today", ""],
+      [q.failed_today || 0, "Failed Today", (q.failed_today || 0) > 0 ? "bad" : ""]
+    ];
+    $("cards").innerHTML = cards.map(function (c) {
+      return '<div class="stat glass ' + c[2] + '"><div class="n">' + c[0]
+        + '</div><div class="l">' + c[1] + '</div></div>';
+    }).join("");
+  }
+
+  function workerUnit(w) {
+    var st, status, bubble = "", bar = "";
+    if (!w.online) {
+      st = "st-off";
+      status = "Offline · seen " + ago(w.last_seen_ago_s);
+    } else if (w.current_job) {
+      st = "st-busy";
+      var kind = String(w.current_job.kind || "video").toUpperCase();
+      var pct = w.current_job.progress || 0;
+      bubble = '<div class="bubble">' + esc(kind) + " " + pct + "%</div>";
+      bar = '<div class="bar"><i style="width:' + pct + '%"></i></div>';
+      status = "Working · " + esc(kind) + " " + pct + "%";
+    } else {
+      st = "st-idle";
+      status = "Online · ready for work";
+    }
+    var caps = (w.caps && w.caps.length) ? esc(w.caps.join(" · ")) : "—";
+    return '<div class="unit ' + st + " plat-" + esc(w.platform) + '">'
+      + bubble + (st === "st-off" ? ZZ : "")
+      + '<div class="char">' + robotSVG() + '</div><div class="platform"></div>'
+      + '<div class="uname">' + esc(w.name) + '</div>'
+      + '<div class="utags"><span class="tag">'
+      + esc(String(w.platform).toUpperCase()) + '</span>'
+      + '<span class="caps">' + caps + '</span></div>'
+      + bar + '<div class="ustatus">' + esc(status) + '</div></div>';
+  }
+
+  function renderWorkers(state) {
+    var ws = state.workers || [];
+    $("workers").innerHTML = ws.length
+      ? ws.map(workerUnit).join("")
+      : '<div class="empty-note">No workers have checked in yet — the fleet is asleep.</div>';
+  }
+
+  function heartbeatUnit(opts) {
+    // opts: {hb|null, svg, name, role, noneText, okStatus, errStatus}
+    var st, status, detail = "";
+    if (!opts.hb) {
+      st = opts.noneState || "st-none";
+      status = opts.noneText;
+    } else if (opts.hb.status === "ok" || opts.hb.status === "done"
+               || opts.hb.status === "success") {
+      st = opts.okState || "st-ok";
+      status = "Last check-in " + ago(opts.hb.ago_s);
+      detail = opts.hb.detail || "";
+    } else {
+      st = "st-error";
+      status = "Trouble · " + ago(opts.hb.ago_s);
+      detail = opts.hb.detail || opts.hb.status;
+    }
+    return '<div class="unit wide ' + st + " plat-" + opts.plat + '">'
+      + (st === "st-none" || st === "st-sleep" ? ZZ : "")
+      + '<div class="char">' + opts.svg + '</div><div class="platform"></div>'
+      + '<div class="uname">' + esc(opts.name) + '</div>'
+      + '<div class="utags"><span class="tag">' + esc(opts.role) + '</span></div>'
+      + (detail ? '<div class="udetail">' + esc(detail) + '</div>' : "")
+      + '<div class="ustatus">' + esc(status) + '</div></div>';
+  }
+
+  function renderCommand(state) {
+    var hb = (state.heartbeats || {})["fleet-manager"] || null;
+    var manager = heartbeatUnit({
+      hb: hb, svg: operatorSVG(), name: "Fleet Manager", role: "OPERATOR",
+      plat: "local", noneText: "No signal yet — waiting for first check-in"
+    });
+    var ag = state.agent || {};
+    var awake = (ag.chat_workers_online || 0) > 0;
+    var agent = heartbeatUnit({
+      hb: awake ? { status: "ok", detail: "", ago_s: 0 } : null,
+      svg: wizardSVG(), name: "TOQIX Agent", role: "SITE BRAIN",
+      plat: "local", noneState: "st-sleep",
+      noneText: "Asleep · " + (ag.chat_jobs_24h || 0) + " chats in 24h",
+      okState: "st-awake"
+    });
+    if (awake) {
+      agent = agent.replace("Last check-in just now",
+        "Awake · " + ag.chat_workers_online + " chat worker(s) online · "
+        + (ag.chat_jobs_24h || 0) + " chats in 24h");
+    }
+    $("command").innerHTML = manager + agent;
+  }
+
+  var SYSTEMS = [
+    ["self-test", "Self-Test Bot", "SELF-TEST"],
+    ["daily-research", "Research Bot", "RESEARCH"],
+    ["daily-shorts", "Shorts Bot", "SHORTS"],
+    ["model-watch", "Model Scout", "MODEL WATCH"]
+  ];
+  function renderSystems(state) {
+    var hbs = state.heartbeats || {};
+    $("systems").innerHTML = SYSTEMS.map(function (s) {
+      var hb = hbs[s[0]] || null;
+      var st, status, detail = "";
+      if (!hb) { st = "st-none"; status = "Waiting for first check-in"; }
+      else if (hb.status === "ok" || hb.status === "done" || hb.status === "success") {
+        st = "st-ok"; status = "Checked in " + ago(hb.ago_s); detail = hb.detail || "";
+      } else {
+        st = "st-error"; status = "Trouble · " + ago(hb.ago_s); detail = hb.detail || hb.status;
+      }
+      return '<div class="unit ' + st + ' plat-local">'
+        + (st === "st-none" ? ZZ : "")
+        + '<div class="char sm">' + helperSVG() + '</div><div class="platform"></div>'
+        + '<div class="uname">' + esc(s[1]) + '</div>'
+        + '<div class="utags"><span class="tag">' + esc(s[2]) + '</span></div>'
+        + (detail ? '<div class="udetail">' + esc(detail) + '</div>' : "")
+        + '<div class="ustatus">' + esc(status) + '</div></div>';
+    }).join("");
+  }
+
+  function renderFeed(state) {
+    var items = state.feed || [];
+    if (!items.length) {
+      $("feed").innerHTML = '<div class="empty-note">Nothing yet — the stage is quiet.</div>';
+      return;
+    }
+    var now = state.generated_at || (Date.now() / 1000);
+    $("feed").innerHTML = items.map(function (j) {
+      var meta = [];
+      if (j.claimed_by) meta.push("by " + j.claimed_by);
+      if (j.status === "generating") meta.push((j.progress || 0) + "%");
+      meta.push(ago(now - (j.updated_at || now)));
+      return '<div class="feed-item"><span class="fdot ' + esc(j.status) + '"></span>'
+        + '<div class="fmain"><div class="ftitle">'
+        + esc(String(j.kind || "video").toUpperCase())
+        + ' <span class="fst">' + esc(j.status) + '</span></div>'
+        + '<div class="fprompt">' + esc(j.prompt || "") + '</div>'
+        + '<div class="fmeta">' + esc(meta.join(" · ")) + '</div></div></div>';
+    }).join("");
+  }
+
+  /* ---------------- polling + clock ---------------- */
+  function setConn(on, txt) {
+    $("conn").className = on ? "on" : "off";
+    $("conn-txt").textContent = txt;
+  }
+  function refresh() {
+    fetch("/api/control/state", { headers: { "Accept": "application/json" } })
+      .then(function (r) {
+        if (r.status === 401) { window.location.href = "/control"; throw new Error("401"); }
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      })
+      .then(function (state) {
+        setConn(true, "LIVE");
+        renderCards(state); renderWorkers(state);
+        renderCommand(state); renderSystems(state); renderFeed(state);
+      })
+      .catch(function () { setConn(false, "RECONNECTING"); });
+  }
+  function tickClock() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    $("clock").textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+  setInterval(refresh, 10000);
+  setInterval(tickClock, 1000);
+  tickClock(); refresh();
+})();
+</script>
+</body>
+</html>

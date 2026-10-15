@@ -157,6 +157,16 @@
       });
       sel.value = state.aspect;
       sel.addEventListener("change", function () { state.aspect = sel.value; });
+      if (o.durations && o.durations.length) {
+        var dsel = $("duration");
+        dsel.innerHTML = "";
+        o.durations.forEach(function (d) {
+          var dop = document.createElement("option");
+          dop.value = String(d);
+          dop.textContent = d + "s";
+          dsel.appendChild(dop);
+        });
+      }
       $("duration").value = String(o.defaults.duration);
     }).catch(function () { /* offline: chips stay empty, Generate still posts defaults */ });
   }

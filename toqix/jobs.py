@@ -79,6 +79,15 @@ def init_db() -> None:
             )
             """
         )
+        # Key-value store for site-level signals (the GPU wake flag).
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS meta (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
         # Migration for databases created before the flywheel fields existed.
         existing = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
         for col, ddl in (
@@ -223,6 +232,10 @@ def create_job(
             "UPDATE jobs SET package_path = ? WHERE id = ?",
             (str(pkg_path), job_id),
         )
+    # Website-integrated GPU dispatch: if no worker is online, the
+    # site itself raises the wake signal so a GPU gets started.
+    if not any(w["online"] for w in list_workers()):
+        request_wake(job_id, kind)
     return get_job(job_id)
 
 
@@ -477,6 +490,8 @@ def ping_worker(name: str, caps_list) -> dict:
             """,
             (name, json.dumps(caps), now),
         )
+    # A worker checking in satisfies any outstanding GPU wake request.
+    clear_wake()
     return {"name": name, "caps": caps, "last_seen": now, "online": True}
 
 
@@ -501,6 +516,75 @@ def list_workers() -> list[dict]:
             "online": (now - last_seen) <= WORKER_ONLINE_SECONDS,
         })
     return workers
+
+
+# ---------------------------------------------------------------------------
+# GPU wake signal — the website itself asks for a GPU the moment a job
+# lands while no worker is online. The fleet watchdog polls /api/wake
+# and starts a worker; a worker's ping clears the request.
+# ---------------------------------------------------------------------------
+
+def _meta_get(key: str) -> str | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT value FROM meta WHERE key = ?", (key,)
+        ).fetchone()
+    return row[0] if row else None
+
+
+def _meta_set(key: str, value: str) -> None:
+    with _LOCK, _conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO meta (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, value),
+        )
+
+
+def _meta_del(key: str) -> None:
+    with _LOCK, _conn() as conn:
+        conn.execute("DELETE FROM meta WHERE key = ?", (key,))
+
+
+def request_wake(job_id: str, kind: str) -> None:
+    """Record that a GPU is needed. Keeps the FIRST unmet request, so
+    ``since`` reflects the oldest job still waiting for a GPU."""
+    if _meta_get("wake") is None:
+        _meta_set("wake", json.dumps(
+            {"since": time.time(), "job_id": job_id, "kind": kind}
+        ))
+
+
+def clear_wake() -> None:
+    _meta_del("wake")
+
+
+def wake_status() -> dict:
+    """The site's GPU dispatch state: ``needed`` is true exactly when
+    a wake was requested, jobs are still waiting, and no worker is
+    online — the watchdog acts on this."""
+    wake = None
+    raw = _meta_get("wake")
+    if raw:
+        try:
+            wake = json.loads(raw)
+        except (TypeError, ValueError):
+            wake = None
+    with _conn() as conn:
+        waiting = conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE status IN ('queued', 'exported')"
+        ).fetchone()[0]
+    online = sum(1 for w in list_workers() if w["online"])
+    return {
+        "needed": bool(wake) and waiting > 0 and online == 0,
+        "since": (wake or {}).get("since"),
+        "job_id": (wake or {}).get("job_id"),
+        "kind": (wake or {}).get("kind"),
+        "waiting_jobs": waiting,
+        "workers_online": online,
+    }
 
 
 init_db()

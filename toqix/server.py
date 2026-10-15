@@ -299,6 +299,22 @@ def get_workers():
     return {"workers": jobs.list_workers()}
 
 
+@app.get("/api/wake")
+def get_wake():
+    """The site's GPU wake signal: ``needed`` is true when a prompt
+    is waiting and no worker is online — the fleet watchdog reads
+    this and starts a GPU worker automatically."""
+    return jobs.wake_status()
+
+
+@app.post("/api/wake/ack")
+def wake_ack():
+    """The watchdog acknowledges a wake once it has dispatched a
+    worker start, so it does not dispatch duplicates."""
+    jobs.clear_wake()
+    return {"ok": True}
+
+
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str):
     job = jobs.get_job(job_id)

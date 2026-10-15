@@ -63,9 +63,9 @@ body {
 main {
   position: relative; z-index: 1;
   max-width: 1120px; margin: 0 auto;
-  padding: 96px 16px 300px;
+  padding: 96px 16px 360px;
 }
-main.agent-mode { padding-bottom: 48px; }
+main.agent-mode { padding-bottom: 120px; }
 
 /* ---------- creations feed ---------- */
 .feed-title {
@@ -294,10 +294,23 @@ footer {
 
 /* ---------- floating composer ---------- */
 .composer {
-  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  width: min(680px, 94vw); z-index: 60;
+  position: relative; width: 100%;
   border-radius: 24px; padding: 14px 16px 12px;
   display: flex; flex-direction: column; gap: 10px;
+}
+
+/* ---------- bottom dock (Flow-style): view switch floats above the composer ---------- */
+.bottom-dock {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  width: min(680px, 94vw); z-index: 60;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.dock-bar { display: flex; justify-content: center; }
+.bottom-dock .view-seg {
+  background: rgba(16,18,30,.72);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 14px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14);
 }
 .composer textarea {
   width: 100%; resize: none; overflow-y: auto;
@@ -385,7 +398,7 @@ footer {
   .topbar { padding: 10px 14px; }
   .logo { font-size: 17px; }
   .view-seg button { padding: 6px 12px; font-size: 13px; }
-  .composer { padding: 12px 12px 10px; bottom: 12px; gap: 8px; border-radius: 20px; }
+  .composer { padding: 12px 12px 10px; gap: 8px; border-radius: 20px; }
   .composer textarea { font-size: 15px; }
   .chip { padding: 5px 10px; font-size: 12px; }
   .controls { gap: 8px; }
@@ -507,19 +520,14 @@ body.lb-open { overflow: hidden; }
 }
 
 /* ---------------- responsive header ----------------
-   Mobile: the bar wraps into two tidy rows — logo + account on the
-   first row, the Studio/Agent switch centered on the second — so the
-   sign-in / account buttons never crush or overflow the pill. */
+   The top bar now holds only the logo and the account area (the
+   Studio/Agent switch lives in the bottom dock), so one row fits at
+   every width; on mobile the account controls just go compact. */
 @media (max-width: 640px) {
-  .topbar {
-    flex-wrap: wrap; row-gap: 8px;
-    padding: 10px 14px; border-radius: 26px;
-  }
-  .logo { order: 1; }
-  .auth-area { order: 2; margin-left: auto; gap: 6px; min-width: 0; }
-  .view-seg { order: 3; margin: 2px auto 0; }
+  .topbar { flex-wrap: nowrap; padding: 10px 14px; }
+  .auth-area { gap: 6px; min-width: 0; }
   .auth-btn { padding: 7px 11px; font-size: 12.5px; }
   .user-chip { padding: 4px; }
   .wide-only { display: none; }
-  main { padding-top: 152px; }
+  .bottom-dock { bottom: 12px; gap: 8px; }
 }

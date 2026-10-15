@@ -11,11 +11,6 @@
 
 <header class="topbar glass">
   <div class="logo">TOQIX<span>AI</span></div>
-  <div class="seg view-seg" id="view-seg">
-    <span class="seg-thumb" id="view-thumb"></span>
-    <button type="button" data-view="studio" class="active">Studio</button>
-    <button type="button" data-view="agent">Agent</button>
-  </div>
   <div class="auth-area" id="auth-area"></div>
 </header>
 
@@ -46,6 +41,15 @@
   </section>
   <footer>TOQIX AI</footer>
 </main>
+
+<div class="bottom-dock">
+  <div class="dock-bar">
+    <div class="seg view-seg" id="view-seg">
+      <span class="seg-thumb" id="view-thumb"></span>
+      <button type="button" data-view="studio" class="active">Studio</button>
+      <button type="button" data-view="agent">Agent</button>
+    </div>
+  </div>
 
 <section id="composer" class="composer glass">
   <textarea id="prompt" rows="1"
@@ -81,6 +85,7 @@
   </div>
   <p id="msg" class="msg"></p>
 </section>
+</div>
 
 <div id="lightbox" class="lightbox hidden" role="dialog" aria-modal="true">
   <div class="lb-backdrop" id="lb-backdrop"></div>

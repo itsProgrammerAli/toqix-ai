@@ -117,7 +117,7 @@
   function updateFeedHeading() {
     var h = $("feed-title");
     if (!h) return;
-    h.textContent = !state.user ? "Showcase"
+    h.textContent = !state.user ? "Creations"
       : state.user.is_admin ? "Creations" : "Your creations";
   }
 
@@ -181,6 +181,7 @@
       }
     });
     $("media-opts").classList.toggle("hidden", state.kind === "audio");
+    document.body.classList.toggle("kind-audio", state.kind === "audio");
     $("duration-wrap").classList.toggle("hidden", state.kind !== "video");
     $("prompt").placeholder = PLACEHOLDERS[state.kind];
     renderChips();

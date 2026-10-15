@@ -161,17 +161,25 @@
     }).catch(function () { /* offline: chips stay empty, Generate still posts defaults */ });
   }
 
-  /* sliding highlight for the Video|Image|Audio segmented control */
+  /* sliding highlight for the Video|Image|Audio segmented control.
+     Position is measured from the buttons' real rendered boxes
+     (relative to the seg itself), so the bubble always sits exactly
+     under the active label — offsetLeft alone can drift a few pixels
+     when the seg's parent layout changes (grid tracks, wrapping). */
   function moveThumb() {
     var thumb = $("seg-thumb");
     if (!thumb) return;
+    var seg = $("kind-seg");
     var active = null;
-    Array.prototype.forEach.call($("kind-seg").children, function (b) {
+    Array.prototype.forEach.call(seg.children, function (b) {
       if (b.tagName === "BUTTON" && b.getAttribute("data-kind") === state.kind) active = b;
     });
     if (!active) return;
-    thumb.style.width = active.offsetWidth + "px";
-    thumb.style.transform = "translateX(" + active.offsetLeft + "px)";
+    var sr = seg.getBoundingClientRect();
+    var br = active.getBoundingClientRect();
+    thumb.style.width = br.width + "px";
+    thumb.style.transform =
+      "translateX(" + (br.left - sr.left - seg.clientLeft) + "px)";
   }
 
   function applyKind() {
@@ -186,6 +194,9 @@
     $("prompt").placeholder = PLACEHOLDERS[state.kind];
     renderChips();
     moveThumb();
+    /* the controls reflow when options hide/show — re-measure after
+       the browser has painted the new layout */
+    requestAnimationFrame(moveThumb);
   }
 
   Array.prototype.forEach.call($("kind-seg").children, function (b) {
@@ -271,8 +282,12 @@
       if (b.tagName === "BUTTON" && b.getAttribute("data-view") === state.view) active = b;
     });
     if (!active) return;
-    thumb.style.width = active.offsetWidth + "px";
-    thumb.style.transform = "translateX(" + active.offsetLeft + "px)";
+    var seg = $("view-seg");
+    var sr = seg.getBoundingClientRect();
+    var br = active.getBoundingClientRect();
+    thumb.style.width = br.width + "px";
+    thumb.style.transform =
+      "translateX(" + (br.left - sr.left - seg.clientLeft) + "px)";
   }
 
   function applyView() {

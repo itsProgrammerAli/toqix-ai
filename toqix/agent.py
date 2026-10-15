@@ -92,6 +92,7 @@ Behaviour contract (owner's rules, enforced in chat()):
 
 from __future__ import annotations
 
+import contextvars
 import json
 import re
 import sqlite3
@@ -103,6 +104,13 @@ from . import config, jobs, knowledge, story
 from .prompt_engine import STYLE_PRESETS
 
 _LOCK = threading.Lock()
+
+# The signed-in user on whose behalf the current chat() turn runs.
+# Set at chat() entry; _create_project and the job-queueing helpers
+# read it so every project and job carries its owner (accounts
+# release: users only ever see their own series and creations).
+_current_user_id: contextvars.ContextVar = contextvars.ContextVar(
+    "toqix_current_user_id", default=None)
 
 # Voice characters for audio parts (the runner maps these names to TTS
 # voices; the website composer offers the same six).
@@ -142,11 +150,15 @@ def init_db() -> None:
                 seed         INTEGER NOT NULL,
                 kind_default TEXT NOT NULL DEFAULT 'video',
                 state        TEXT NOT NULL DEFAULT 'ask_character',
+                user_id      TEXT DEFAULT NULL,
                 created_at   REAL NOT NULL,
                 updated_at   REAL NOT NULL
             )
             """
         )
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(projects)")}
+        if "user_id" not in existing:
+            conn.execute("ALTER TABLE projects ADD COLUMN user_id TEXT DEFAULT NULL")
 
 
 def _public(row: dict) -> dict:
@@ -167,11 +179,28 @@ def get_project(project_id: str) -> dict | None:
     return _public(row) if row else None
 
 
-def list_projects() -> list[dict]:
+def project_owner_id(project_id: str) -> str | None:
+    """The user_id that owns a project (None = legacy/unowned or
+    unknown) — the server gates project detail views with it."""
+    row = _get_row(project_id) if project_id else None
+    return row.get("user_id") if row else None
+
+
+def list_projects(user_id: str | None = None,
+                  is_admin: bool = False) -> list[dict]:
+    # Accounts release: a user sees only their own series; the admin
+    # sees all; anonymous callers see none.
+    if is_admin:
+        sql = "SELECT * FROM projects ORDER BY created_at DESC"
+        params: tuple = ()
+    elif user_id:
+        sql = ("SELECT * FROM projects WHERE user_id = ?"
+               " ORDER BY created_at DESC")
+        params = (user_id,)
+    else:
+        return []
     with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM projects ORDER BY created_at DESC"
-        ).fetchall()
+        rows = conn.execute(sql, params).fetchall()
     return [_public(dict(r)) for r in rows]
 
 
@@ -189,22 +218,24 @@ def _derive_name(character: str) -> str:
     return text[:45].rsplit(" ", 1)[0].rstrip(",.;") + "…"
 
 
-def _create_project(character: str) -> dict:
+def _create_project(character: str, user_id: str | None = None) -> dict:
     project_id = uuid.uuid4().hex[:12]
     # Fixed for the whole series — same seed + same anchor = same face.
     seed = int(uuid.uuid4().hex[:8], 16) % 1_000_000 + 1
     now = time.time()
+    if user_id is None:
+        user_id = _current_user_id.get()
     with _LOCK, _conn() as conn:
         conn.execute(
             """
             INSERT INTO projects (id, name, character, style, aspect, voice,
-                                  seed, kind_default, state,
+                                  seed, kind_default, state, user_id,
                                   created_at, updated_at)
-            VALUES (?, ?, ?, '', ?, '', ?, 'video', 'ask_style', ?, ?)
+            VALUES (?, ?, ?, '', ?, '', ?, 'video', 'ask_style', ?, ?, ?)
             """,
             (
                 project_id, _derive_name(character), character,
-                config.DEFAULT_ASPECT, seed, now, now,
+                config.DEFAULT_ASPECT, seed, user_id, now, now,
             ),
         )
     return _get_row(project_id)
@@ -213,7 +244,7 @@ def _create_project(character: str) -> dict:
 def _update_project(project_id: str, **fields) -> dict:
     allowed = {
         "name", "character", "style", "aspect", "voice", "seed",
-        "kind_default", "state",
+        "kind_default", "state", "user_id",
     }
     fields = {k: v for k, v in fields.items() if k in allowed}
     if fields:
@@ -549,6 +580,7 @@ def _queue_parsed_scene(project: dict, scene: str, kind: str) -> dict:
             kind=kind,
             seed=project["seed"],
             project_id=project["id"],
+            user_id=project.get("user_id") or _current_user_id.get(),
         )
     except ValueError as exc:
         return _result(f"Couldn't queue that part: {exc}", project)
@@ -867,9 +899,19 @@ _CHAT_SYSTEM = (
     "- Chat naturally, like a warm and smart friend: answer general "
     "questions, discuss ideas, write stories, poems and scripts, "
     "give advice, explain things simply.\n"
-    "- Mirror the user's language — English, Roman Urdu or "
-    "Hinglish. If they write in Roman Urdu, answer in Roman Urdu; "
-    "if in English, answer in English.\n"
+    "- Mirror the user's language AND script exactly — English, "
+    "Roman Urdu or Hinglish. If they write in Roman Urdu, answer "
+    "in Roman Urdu; if in English, answer in English.\n"
+    "- SCRIPT RULE (never break this): if the user writes in the "
+    "Latin alphabet — English or Roman Urdu — reply ONLY in the "
+    "Latin alphabet. Never answer a Latin-alphabet message in "
+    "Urdu/Arabic script. Use Urdu script only when the user's own "
+    "message is written in Urdu script.\n"
+    "- One fact, one clear sentence: explain causes plainly and "
+    "correctly (for example, the sky looks blue because air "
+    "scatters blue sunlight more than other colours). Never use "
+    "a word from the wrong language just because it sounds "
+    "similar.\n"
     "- Be warm and concise: short, clear answers unless the user "
     "asks for depth or a full piece of writing.\n"
     "- You have no live internet and no today's-facts feed. If you "
@@ -971,6 +1013,7 @@ def _llm_chat_reply(project: dict | None, message: str) -> dict | None:
             prompt=_build_chat_pack(project, message),
             kind="chat",
             project_id=project["id"] if project else None,
+            user_id=(project or {}).get("user_id") or _current_user_id.get(),
         )
     except ValueError:
         return None
@@ -1064,6 +1107,8 @@ def queue_from_directive(chat_job: dict, directive: dict) -> str | None:
             kind=kind,
             seed=seed,
             project_id=project["id"] if project else None,
+            user_id=chat_job.get("user_id")
+                    or (project or {}).get("user_id"),
         )
         return job["id"]
     except Exception:
@@ -1613,7 +1658,8 @@ def _chat_no_project(message: str, low: str, norm: str) -> dict:
     return _result(_ask_style_reply(project), project)
 
 
-def chat(project_id: str | None, message: str) -> dict:
+def chat(project_id: str | None, message: str,
+         user_id: str | None = None, is_admin: bool = False) -> dict:
     """One turn of the TOQIX Agent conversation.
 
     project_id None (or unknown) = no series context yet: a greeting
@@ -1626,6 +1672,7 @@ def chat(project_id: str | None, message: str) -> dict:
     consume an answer the state machine is waiting for — and only
     then the collect-flow state machine itself.
     """
+    _current_user_id.set(user_id)
     message = (message or "").strip()
     low = message.lower()
     norm = _norm(message)
@@ -1635,6 +1682,20 @@ def chat(project_id: str | None, message: str) -> dict:
         return _result(_ask_character_reply(), None)
 
     project = _get_row(project_id) if project_id else None
+
+    # Ownership (accounts release): a series belongs to its creator.
+    # Legacy ownerless projects are adopted by the admin on first open
+    # and are invisible to everyone else.
+    if project is not None:
+        owner = project.get("user_id")
+        if owner and owner != user_id and not is_admin:
+            return _result(
+                "That series belongs to a different account. "
+                "Say 'new series' to start your own.", None)
+        if not owner and is_admin and user_id:
+            project = _update_project(project["id"], user_id=user_id)
+        elif not owner and not is_admin:
+            project = None
 
     if project is None:
         return _chat_no_project(message, low, norm)

@@ -5,10 +5,12 @@
   var state = {
     kind: "video", style: "cinematic", voice: "Ava", aspect: "16:9",
     view: "studio", activeProject: null, projects: [],
-    agentBusy: false, agentGreeted: false
+    agentBusy: false, agentGreeted: false,
+    user: null, meLoaded: false, googleConfigured: false
   };
   var lastSig = null;
   var seen = {};
+  var feedJobs = [];
   var styleItems = [];
 
   /* Audio mode: the chips row offers voice characters instead of styles.
@@ -67,6 +69,76 @@
       chipRow($("styles"), styleItems, state.style,
         function (v) { state.style = v; });
     }
+  }
+
+  /* ---------------- accounts ---------------- */
+
+  function renderAuth() {
+    var box = $("auth-area");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!state.meLoaded) return;
+    if (!state.user) {
+      if (state.googleConfigured) {
+        var a = document.createElement("a");
+        a.className = "auth-btn";
+        a.href = "/auth/google";
+        a.textContent = "Sign in with Google";
+        box.appendChild(a);
+      }
+      return;
+    }
+    var u = state.user;
+    var label = u.name || u.email || "Account";
+    var chip = document.createElement("div");
+    chip.className = "user-chip";
+    chip.innerHTML = '<span class="avatar init">' +
+      esc(label.charAt(0).toUpperCase()) + '</span>' +
+      '<span class="user-name">' + esc(label) + "</span>";
+    box.appendChild(chip);
+    if (u.is_admin) {
+      var adm = document.createElement("a");
+      adm.className = "auth-btn admin-link";
+      adm.href = "/admin";
+      adm.textContent = "Admin";
+      box.appendChild(adm);
+    }
+    var out = document.createElement("button");
+    out.type = "button";
+    out.className = "auth-btn";
+    out.textContent = "Sign out";
+    out.addEventListener("click", function () {
+      fetch("/auth/logout", { method: "POST" })
+        .then(function () { window.location.reload(); });
+    });
+    box.appendChild(out);
+  }
+
+  function updateFeedHeading() {
+    var h = $("feed-title");
+    if (!h) return;
+    h.textContent = !state.user ? "Showcase"
+      : state.user.is_admin ? "Creations" : "Your creations";
+  }
+
+  function loadMe() {
+    fetch("/api/me").then(function (r) { return r.json(); })
+      .then(function (d) {
+        state.user = d.user || null;
+        state.googleConfigured = !!d.google_configured;
+        state.meLoaded = true;
+        renderAuth();
+        updateFeedHeading();
+        if (state.user && state.user.banned) {
+          var m = $("msg");
+          m.textContent = "Your account is suspended — creations are disabled.";
+          m.className = "msg err";
+        }
+        lastSig = null;
+        refresh();
+        if (state.user) loadProjects();
+      })
+      .catch(function () { state.meLoaded = true; renderAuth(); });
   }
 
   function loadOptions() {
@@ -130,6 +202,12 @@
     var msg = $("msg");
     var prompt = ta.value.trim();
     msg.textContent = ""; msg.className = "msg";
+    if (state.meLoaded && !state.user) {
+      if (state.googleConfigured) { window.location.href = "/auth/google"; return; }
+      msg.textContent = "Sign-in is not available yet.";
+      msg.className = "msg err";
+      return;
+    }
     if (!prompt) {
       msg.textContent = "Write your idea first.";
       msg.className = "msg err";
@@ -152,7 +230,15 @@
     }).then(function (res) {
       btn.disabled = false;
       if (!res.ok) {
-        msg.textContent = "Error: " + (res.j.detail || "could not create");
+        if (res.j && res.j.detail === "sign_in_required") {
+          window.location.href = "/auth/google";
+          return;
+        }
+        if (res.j && res.j.detail === "account_suspended") {
+          msg.textContent = "Your account is suspended — creations are disabled.";
+        } else {
+          msg.textContent = "Error: " + ((res.j && res.j.detail) || "could not create");
+        }
         msg.className = "msg err";
         return;
       }
@@ -431,6 +517,12 @@
 
   function agentRequest(text, isGreeting) {
     if (state.agentBusy) return;
+    if (state.meLoaded && !state.user) {
+      if (!isGreeting) addBubble(text, "user");
+      addBubble("Sign in with Google (top right) to use the Agent — " +
+        "your series and creations stay private to your account.", "agent");
+      return;
+    }
     state.agentBusy = true;
     if (!isGreeting) addBubble(text, "user");
     var typing = addTyping();
@@ -519,18 +611,23 @@
 
   function mediaHTML(j, st) {
     if (st === "done" && j.output_path) {
+      /* Done media opens in the big lightbox player on click — the
+         tile itself is just a preview (owner's gallery rule). */
       if (j.kind === "image") {
-        return '<div class="media filled"><img src="' + esc(j.output_path) +
-          '" alt=""></div>';
+        return '<div class="media filled openable" data-open="' + j.id +
+          '"><img src="' + esc(j.output_path) + '" alt="">' +
+          '<span class="open-hint">View</span></div>';
       }
       if (j.kind === "audio") {
         return '<div class="media"><div class="audio-glyph">♪</div>' +
-          '<audio controls src="' + esc(j.output_path) + '"></audio></div>';
+          '<audio controls src="' + esc(j.output_path) + '"></audio>' +
+          '<button type="button" class="open-player" data-open="' + j.id +
+          '">Open player</button></div>';
       }
-      return '<div class="media filled"><video controls preload="metadata" src="' +
-        esc(j.output_path) + '"' +
+      return '<div class="media filled openable" data-open="' + j.id +
+        '"><video preload="metadata" src="' + esc(j.output_path) + '"' +
         (j.thumb_path ? ' poster="' + esc(j.thumb_path) + '"' : "") +
-        "></video></div>";
+        '></video><span class="play-overlay">&#9654;</span></div>';
     }
     if (st === "generating") {
       var p = Math.max(0, Math.min(100, j.progress || 0));
@@ -625,10 +722,93 @@
     if (st === "done") {
       div.querySelector(".body").appendChild(feedbackRow(j));
     }
+    var opener = div.querySelector("[data-open]");
+    if (opener) {
+      opener.addEventListener("click", function () { openLightbox(j.id); });
+    }
     return div;
   }
 
+  /* ---------------- lightbox player ----------------
+     Clicking a creation opens it like a gallery piece: big player,
+     full controls, prompt caption, prev/next through the feed. */
+
+  var lbIndex = -1;
+
+  function lbList() {
+    return feedJobs.filter(function (j) {
+      return displayStatus(j) === "done" && j.output_path;
+    });
+  }
+
+  function lbRender() {
+    var list = lbList();
+    if (lbIndex < 0 || lbIndex >= list.length) return;
+    var j = list[lbIndex];
+    var box = $("lb-media");
+    if (j.kind === "image") {
+      box.innerHTML = '<img src="' + esc(j.output_path) + '" alt="">';
+    } else if (j.kind === "audio") {
+      box.innerHTML = '<div class="lb-audio"><div class="audio-glyph big">♪</div>' +
+        '<audio controls autoplay src="' + esc(j.output_path) + '"></audio></div>';
+    } else {
+      box.innerHTML = '<video controls autoplay playsinline src="' +
+        esc(j.output_path) + '"' +
+        (j.thumb_path ? ' poster="' + esc(j.thumb_path) + '"' : "") +
+        "></video>";
+    }
+    $("lb-prompt").textContent = j.prompt || "";
+    var meta = [KIND_LABEL[j.kind] || "Video", j.style, j.aspect];
+    if (j.kind === "video") meta.push(j.duration + "s");
+    $("lb-meta").textContent = meta.join(" · ") + "  ·  " +
+      (lbIndex + 1) + " / " + list.length;
+    var dl = $("lb-download");
+    dl.href = j.output_path;
+    dl.setAttribute("download", "");
+    var multi = list.length > 1;
+    $("lb-prev").style.display = multi ? "" : "none";
+    $("lb-next").style.display = multi ? "" : "none";
+  }
+
+  function openLightbox(jobId) {
+    var list = lbList();
+    lbIndex = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === jobId) { lbIndex = i; break; }
+    }
+    if (lbIndex < 0) return;
+    $("lightbox").classList.remove("hidden");
+    document.body.classList.add("lb-open");
+    lbRender();
+  }
+
+  function closeLightbox() {
+    $("lightbox").classList.add("hidden");
+    document.body.classList.remove("lb-open");
+    $("lb-media").innerHTML = ""; // stops any playing media
+    lbIndex = -1;
+  }
+
+  function stepLightbox(dir) {
+    var list = lbList();
+    if (list.length < 2 || lbIndex < 0) return;
+    lbIndex = (lbIndex + dir + list.length) % list.length;
+    lbRender();
+  }
+
+  $("lb-close").addEventListener("click", closeLightbox);
+  $("lb-backdrop").addEventListener("click", closeLightbox);
+  $("lb-prev").addEventListener("click", function () { stepLightbox(-1); });
+  $("lb-next").addEventListener("click", function () { stepLightbox(1); });
+  document.addEventListener("keydown", function (e) {
+    if ($("lightbox").classList.contains("hidden")) return;
+    if (e.key === "Escape") closeLightbox();
+    if (e.key === "ArrowLeft") stepLightbox(-1);
+    if (e.key === "ArrowRight") stepLightbox(1);
+  });
+
   function renderFeed(jobs) {
+    feedJobs = jobs;
     var sig = JSON.stringify(jobs.map(function (j) {
       return [j.id, j.status, j.progress, j.output_path, j.rating, j.thumbs, j.project_id];
     }));
@@ -637,7 +817,9 @@
     var box = $("feed");
     box.innerHTML = "";
     if (!jobs.length) {
-      box.innerHTML = '<p class="empty">Nothing here yet — write your first idea in the box below.</p>';
+      box.innerHTML = state.user
+        ? '<p class="empty">Nothing here yet — write your first idea in the box below.</p>'
+        : '<p class="empty">Sign in with Google to create your own videos, images and voice — your creations stay private to you.</p>';
       return;
     }
     var fresh = 0;
@@ -660,7 +842,7 @@
 
   applyKind();
   loadOptions();
-  loadProjects();
+  loadMe();
   refresh();
   setInterval(refresh, 4000);
   requestAnimationFrame(moveThumb);

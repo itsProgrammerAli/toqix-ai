@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TOQIX AI — Admin</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .admin-wrap { max-width: 1060px; margin: 0 auto; padding: 92px 16px 60px; }
+  .admin-wrap h1 { font-size: 26px; margin: 0 0 4px; }
+  .admin-sub { color: rgba(255,255,255,.55); font-size: 14px; margin-bottom: 22px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 26px; }
+  .stat { padding: 16px; border-radius: 16px; }
+  .stat .n { font-size: 28px; font-weight: 800; }
+  .stat .l { font-size: 12.5px; color: rgba(255,255,255,.55); margin-top: 2px; }
+  .panel { padding: 18px; border-radius: 18px; margin-bottom: 22px; }
+  .panel h2 { font-size: 17px; margin: 0 0 12px; }
+  .panel h2 .count { color: #ffb3b3; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid rgba(255,255,255,.08); vertical-align: top; }
+  th { color: rgba(255,255,255,.5); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .sev { padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+  .sev.critical { background: rgba(255,60,60,.25); color: #ff9c9c; border: 1px solid rgba(255,60,60,.5); }
+  .sev.high { background: rgba(255,140,0,.2); color: #ffc38a; border: 1px solid rgba(255,140,0,.45); }
+  .sev.medium { background: rgba(255,210,0,.15); color: #ffe28a; border: 1px solid rgba(255,210,0,.4); }
+  .rowbtn { padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
+    color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22); }
+  .rowbtn:hover { background: rgba(255,255,255,.2); }
+  .rowbtn.danger { background: rgba(255,60,60,.18); border-color: rgba(255,60,60,.45); }
+  .rowbtn.good { background: rgba(0,200,150,.16); border-color: rgba(0,200,150,.45); }
+  .muted { color: rgba(255,255,255,.45); }
+  .prompt-cell { max-width: 340px; word-break: break-word; }
+  .scrollbox { max-height: 420px; overflow: auto; }
+  .banned-tag { color: #ff9c9c; font-weight: 700; font-size: 12px; }
+  .feat-tag { color: #8affd1; font-weight: 700; font-size: 12px; }
+  #denied { padding: 40px 20px; text-align: center; font-size: 16px; }
+  .back { color: #9fd8ff; text-decoration: none; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i></div>
+<header class="topbar glass">
+  <div class="logo">TOQIX<span>AI</span></div>
+  <div class="auth-area"><a class="auth-btn" href="/">&#8592; Studio</a></div>
+</header>
+
+<main class="admin-wrap">
+  <h1>Admin panel</h1>
+  <div class="admin-sub">Every user, every creation, every flagged attempt — one view.</div>
+  <div id="denied" class="glass hidden">This area is for the admin account only.</div>
+  <div id="admin-body" class="hidden">
+    <div class="cards" id="cards"></div>
+
+    <section class="panel glass">
+      <h2>Alerts <span class="count" id="alerts-count"></span></h2>
+      <div class="scrollbox"><table>
+        <thead><tr><th>When</th><th>Severity</th><th>Rule</th><th>User</th><th>Prompt / message</th><th></th></tr></thead>
+        <tbody id="alerts-body"></tbody>
+      </table></div>
+    </section>
+
+    <section class="panel glass">
+      <h2>Users</h2>
+      <div class="scrollbox"><table>
+        <thead><tr><th>User</th><th>Joined</th><th>Last seen</th><th>Creations</th><th>Alerts</th><th>Status</th><th></th></tr></thead>
+        <tbody id="users-body"></tbody>
+      </table></div>
+    </section>
+
+    <section class="panel glass">
+      <h2>Recent activity</h2>
+      <div class="scrollbox"><table>
+        <thead><tr><th>When</th><th>User</th><th>Event</th><th>Detail</th></tr></thead>
+        <tbody id="activity-body"></tbody>
+      </table></div>
+    </section>
+
+    <section class="panel glass">
+      <h2>All creations</h2>
+      <div class="scrollbox"><table>
+        <thead><tr><th>When</th><th>Kind</th><th>Prompt</th><th>Owner</th><th>Status</th><th>Showcase</th></tr></thead>
+        <tbody id="jobs-body"></tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function when(ts) {
+    if (!ts) return "—";
+    return new Date(ts * 1000).toLocaleString();
+  }
+  function get(url) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    });
+  }
+  function post(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    }).then(function (r) { return r.json(); });
+  }
+
+  function loadOverview() {
+    return get("/api/admin/overview").then(function (o) {
+      var cards = [
+        [o.users, "Users"], [o.jobs_total, "Creations (all time)"],
+        [o.jobs_today, "Creations (24 h)"], [o.counts.generating || 0, "Generating now"],
+        [o.counts.queued || 0, "In queue"], [o.workers_online || 0, "GPU workers online"],
+        [o.alerts_unreviewed, "Unreviewed alerts"], [o.alerts_total, "Alerts (all time)"]
+      ];
+      $("cards").innerHTML = cards.map(function (c) {
+        return '<div class="stat glass"><div class="n">' + c[0] +
+          '</div><div class="l">' + c[1] + "</div></div>";
+      }).join("");
+      $("alerts-count").textContent = o.alerts_unreviewed
+        ? "(" + o.alerts_unreviewed + " unreviewed)" : "";
+    });
+  }
+
+  function loadAlerts() {
+    return get("/api/admin/alerts?limit=100").then(function (rows) {
+      $("alerts-body").innerHTML = rows.map(function (a) {
+        return "<tr" + (a.reviewed ? ' class="muted"' : "") + ">" +
+          "<td>" + when(a.created_at) + "</td>" +
+          '<td><span class="sev ' + esc(a.severity) + '">' + esc(a.severity) + "</span></td>" +
+          "<td>" + esc(a.rule) + "</td>" +
+          "<td>" + esc(a.email || "—") + "</td>" +
+          '<td class="prompt-cell">' + esc(a.prompt) + "</td>" +
+          "<td>" + (a.reviewed ? '<span class="muted">reviewed</span>'
+            : '<button class="rowbtn" data-review="' + a.id + '">Mark reviewed</button>') +
+          "</td></tr>";
+      }).join("") || '<tr><td colspan="6" class="muted">No alerts yet.</td></tr>';
+    });
+  }
+
+  function loadUsers() {
+    return get("/api/admin/users").then(function (rows) {
+      $("users-body").innerHTML = rows.map(function (u) {
+        return "<tr><td><strong>" + esc(u.name || u.email) + "</strong><br>" +
+          '<span class="muted">' + esc(u.email) + "</span>" +
+          (u.is_admin ? ' <span class="feat-tag">ADMIN</span>' : "") + "</td>" +
+          "<td>" + when(u.created_at) + "</td>" +
+          "<td>" + when(u.last_seen) + "</td>" +
+          "<td>" + u.job_count + "</td><td>" + u.alert_count + "</td>" +
+          "<td>" + (u.banned ? '<span class="banned-tag">BANNED</span>' : "active") + "</td>" +
+          "<td>" + (u.is_admin ? "" :
+            '<button class="rowbtn ' + (u.banned ? "good" : "danger") +
+            '" data-ban="' + u.id + '" data-state="' + (u.banned ? "1" : "0") + '">' +
+            (u.banned ? "Unban" : "Ban") + "</button>") + "</td></tr>";
+      }).join("") || '<tr><td colspan="7" class="muted">No users yet.</td></tr>';
+    });
+  }
+
+  function loadActivity() {
+    return get("/api/admin/activity?limit=80").then(function (rows) {
+      $("activity-body").innerHTML = rows.map(function (a) {
+        return "<tr><td>" + when(a.created_at) + "</td><td>" + esc(a.email || "—") +
+          "</td><td>" + esc(a.event) + '</td><td class="prompt-cell">' +
+          esc(a.detail) + "</td></tr>";
+      }).join("") || '<tr><td colspan="4" class="muted">No activity yet.</td></tr>';
+    });
+  }
+
+  function loadJobs() {
+    return get("/api/admin/jobs?limit=200").then(function (rows) {
+      $("jobs-body").innerHTML = rows.map(function (j) {
+        return "<tr><td>" + when(j.created_at) + "</td><td>" + esc(j.kind) +
+          '</td><td class="prompt-cell">' + esc(j.prompt) + "</td><td>" +
+          esc(j.owner_email || "—") + "</td><td>" + esc(j.status) + "</td>" +
+          "<td>" + (j.featured ? '<span class="feat-tag">FEATURED</span> ' : "") +
+          '<button class="rowbtn" data-feature="' + j.id + '" data-state="' +
+          (j.featured ? "1" : "0") + '">' + (j.featured ? "Unfeature" : "Feature") +
+          "</button></td></tr>";
+      }).join("") || '<tr><td colspan="6" class="muted">No creations yet.</td></tr>';
+    });
+  }
+
+  function loadAll() {
+    loadOverview(); loadAlerts(); loadUsers(); loadActivity(); loadJobs();
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    if (t.getAttribute("data-review")) {
+      post("/api/admin/alerts/" + t.getAttribute("data-review") + "/review")
+        .then(loadAll);
+    }
+    if (t.getAttribute("data-ban")) {
+      var banned = t.getAttribute("data-state") !== "1";
+      post("/api/admin/users/" + t.getAttribute("data-ban") + "/ban",
+        { banned: banned }).then(loadAll);
+    }
+    if (t.getAttribute("data-feature")) {
+      var featured = t.getAttribute("data-state") !== "1";
+      post("/api/admin/jobs/" + t.getAttribute("data-feature") + "/featured",
+        { featured: featured }).then(loadAll);
+    }
+  });
+
+  fetch("/api/me").then(function (r) { return r.json(); }).then(function (d) {
+    if (!d.user || !d.user.is_admin) {
+      $("denied").classList.remove("hidden");
+      return;
+    }
+    $("admin-body").classList.remove("hidden");
+    loadAll();
+    setInterval(loadAll, 15000);
+  }).catch(function () { $("denied").classList.remove("hidden"); });
+})();
+</script>
+</body>
+</html>

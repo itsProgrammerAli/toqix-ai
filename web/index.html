@@ -16,6 +16,7 @@
     <button type="button" data-view="studio" class="active">Studio</button>
     <button type="button" data-view="agent">Agent</button>
   </div>
+  <div class="auth-area" id="auth-area"></div>
 </header>
 
 <main>
@@ -40,7 +41,7 @@
   </section>
 
   <section class="feed-wrap">
-    <h2 class="feed-title">Creations</h2>
+    <h2 class="feed-title" id="feed-title">Creations</h2>
     <div id="feed" class="feed"></div>
   </section>
   <footer>TOQIX AI</footer>
@@ -80,6 +81,23 @@
   </div>
   <p id="msg" class="msg"></p>
 </section>
+
+<div id="lightbox" class="lightbox hidden" role="dialog" aria-modal="true">
+  <div class="lb-backdrop" id="lb-backdrop"></div>
+  <button id="lb-prev" class="lb-nav prev" type="button" aria-label="Previous">&#8249;</button>
+  <figure class="lb-stage">
+    <div id="lb-media" class="lb-media"></div>
+    <figcaption class="lb-caption">
+      <div id="lb-prompt" class="lb-prompt"></div>
+      <div id="lb-meta" class="lb-meta"></div>
+    </figcaption>
+  </figure>
+  <button id="lb-next" class="lb-nav next" type="button" aria-label="Next">&#8250;</button>
+  <div class="lb-actions">
+    <a id="lb-download" class="lb-btn" href="#" download>Download</a>
+    <button id="lb-close" class="lb-btn" type="button">Close &#10005;</button>
+  </div>
+</div>
 
 <script src="/static/app.js"></script>
 </body>

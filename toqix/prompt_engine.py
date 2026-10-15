@@ -379,13 +379,31 @@ _SOUND_BY_DOMAIN: dict[str, str] = {
 _SOUND_DEFAULT = "cinematic ambient music matching the scene mood"
 
 
+def _match_sound_rules(rules, text: str):
+    """Sound-rule matcher with letter-boundary discipline.
+
+    The shared _match_rules uses raw substrings, which misfires on
+    short sound keywords: "war" hides inside "warm"/"toward" (a
+    meadow robot at warm dusk got battle music). Short keywords
+    (<=5 chars) must match as whole words; longer keywords may match
+    at a word start so deliberate stems ("celebrat") keep working."""
+    for keywords, value in rules:
+        for k in keywords:
+            if len(k) <= 5:
+                if re.search(rf"(?<![a-z]){re.escape(k)}(?![a-z])", text):
+                    return value
+            elif re.search(rf"(?<![a-z]){re.escape(k)}", text):
+                return value
+    return None
+
+
 def _build_sound_prompt(low: str, domain: dict | None) -> str:
     """MusicGen-style sound-bed description for a video prompt.
 
     Content keywords win over the domain (a superhero fight in the
     space domain still wants battle music); the domain is the next
     signal; the fallback is a neutral cinematic bed."""
-    match = _match_rules(_SOUND_RULES, low)
+    match = _match_sound_rules(_SOUND_RULES, low)
     if match:
         return match
     if domain and domain["id"] in _SOUND_BY_DOMAIN:

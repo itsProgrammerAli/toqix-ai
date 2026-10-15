@@ -266,9 +266,11 @@ def list_jobs(limit: int = 100, include_chat: bool = False,
     if not include_chat:
         clauses.append("kind != 'chat'")
     if featured_only:
-        clauses.append("featured = 1")
+        # Owner decision 2026-10-15: there is NO public showcase.
+        # Signed-out visitors never see any creations.
+        clauses.append("1 = 0")
     elif owner_id is not None:
-        clauses.append("(user_id = ? OR featured = 1)")
+        clauses.append("user_id = ?")
         params.append(owner_id)
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with _conn() as conn:
@@ -296,9 +298,10 @@ def gallery(limit: int = 100, owner_id: str | None = None,
     scope = ""
     params: list = []
     if featured_only:
-        scope = " AND featured = 1"
+        # Owner decision 2026-10-15: no public showcase — always empty.
+        scope = " AND 1 = 0"
     elif owner_id is not None:
-        scope = " AND (user_id = ? OR featured = 1)"
+        scope = " AND user_id = ?"
         params.append(owner_id)
     with _conn() as conn:
         rows = conn.execute(

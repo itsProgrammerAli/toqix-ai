@@ -71,10 +71,9 @@ def _public_user(user: dict | None) -> dict | None:
 
 
 def _can_see(user: dict | None, job: dict) -> bool:
-    """A creation is visible to its owner, to the admin, and to
-    everyone when the admin featured it in the public showcase."""
-    if job.get("featured"):
-        return True
+    """A creation is visible ONLY to its owner and to the admin.
+    (Owner decision 2026-10-15: no public showcase — featuring a job
+    never makes it visible to anyone else.)"""
     if user is None:
         return False
     return bool(user.get("is_admin")) or job.get("user_id") == user.get("id")
@@ -427,7 +426,9 @@ def list_jobs(request: Request, include_chat: bool = False):
         return jobs.list_jobs(include_chat=include_chat)
     if user is not None:
         return jobs.list_jobs(owner_id=user["id"])
-    return jobs.list_jobs(featured_only=True)
+    # Signed-out visitors see no creations at all (owner decision
+    # 2026-10-15: privacy first — no public showcase).
+    return []
 
 
 @app.post("/api/jobs/claim-next")
@@ -721,7 +722,9 @@ def gallery(request: Request):
         return jobs.gallery()
     if user is not None:
         return jobs.gallery(owner_id=user["id"])
-    return jobs.gallery(featured_only=True)
+    # Signed-out visitors see no creations at all (owner decision
+    # 2026-10-15: privacy first — no public showcase).
+    return []
 
 
 # ---------------------------------------------------------------------------

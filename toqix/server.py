@@ -462,6 +462,20 @@ def stats():
     }
 
 
+@app.get("/api/zoo")
+def zoo():
+    """The model zoo's public face: which open models serve which
+    kind right now, plus registry counts. Public on purpose — model
+    names are published knowledge, and the response carries no
+    prompts, users, or queue data."""
+    from . import model_zoo
+
+    return {
+        "summary": model_zoo.zoo_summary(),
+        "active": model_zoo.active_models(),
+    }
+
+
 @app.post("/api/jobs/{job_id}/claim")
 def claim_job(job_id: str, body: ClaimIn):
     """Atomically claim one waiting job for a worker (the worker mesh).

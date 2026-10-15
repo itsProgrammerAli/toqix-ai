@@ -179,6 +179,25 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d["steps"] = config.DEFAULT_STEPS
     d["guidance"] = config.DEFAULT_GUIDANCE
     d["model_hf_id"] = config.MODELS.get(d["model"], {}).get("hf_id", "")
+    # Model zoo routing record: the HF id of the zoo's ACTIVE entry
+    # for this job's kind (heavy-aware for video). Derived here like
+    # the other computed fields, never stored. The zoo is a plain
+    # registry module, but if it ever fails to load the job simply
+    # falls back to the config model string it already carries —
+    # routing metadata must never break the queue.
+    d["zoo_model"] = ""
+    try:
+        from . import model_zoo
+
+        zoo_kind = model_zoo.JOB_KIND_TO_ZOO_KIND.get(d["kind"])
+        if zoo_kind:
+            entry = model_zoo.pick(zoo_kind, heavy=bool(d.get("heavy")))
+            if entry:
+                d["zoo_model"] = entry["id"]
+    except Exception:
+        d["zoo_model"] = ""
+    if not d["zoo_model"]:
+        d["zoo_model"] = d["model_hf_id"]
     return d
 
 
@@ -190,6 +209,7 @@ def job_package(job: dict) -> dict:
         "negative_prompt": job["negative_prompt"],
         "model": job["model"],
         "model_hf_id": job["model_hf_id"],
+        "zoo_model": job.get("zoo_model", ""),
         "width": job["width"],
         "height": job["height"],
         "duration": job["duration"],

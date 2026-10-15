@@ -348,10 +348,21 @@ body.kind-audio .bottom-dock { width: min(470px, 94vw); }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
 }
 
-.controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
-.controls .seg { grid-column: 2; justify-self: center; }
-.controls .primary { grid-column: 3; justify-self: end; }
-.opt-line { grid-column: 1; justify-self: start; display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; }
+/* The kind switch is centered ABSOLUTELY, so the side controls can
+   never push it off-center (with an equal-columns grid, the wider
+   Ratio+Length group forced its track wider than the Generate side
+   and shoved the switch ~37px right of center — owner, 2026-10-15).
+   The Ratio/Length text labels are hidden in this row: the bar is
+   too narrow for labels + a truly centered switch; the dropdowns
+   themselves stay exactly as they were. */
+.controls { display: flex; align-items: center; gap: 10px; position: relative; min-height: 42px; }
+.controls .seg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.controls .opt-label { display: none; }
+.opt-line { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; }
+/* Audio on desktop keeps the compact in-flow form: switch left,
+   Generate right, in the shrunken dock. (position: relative, NOT
+   static — the seg must stay the sliding thumb's anchor.) */
+body.kind-audio .controls .seg { position: relative; left: auto; top: auto; transform: none; }
 .dur { display: flex; align-items: center; gap: 7px; }
 .dur select {
   background: rgba(255,255,255,.06); color: #f2f3f8;
@@ -535,13 +546,12 @@ body.lb-open { overflow: hidden; }
   .user-chip { padding: 4px; }
   .wide-only { display: none; }
   .bottom-dock { bottom: 12px; gap: 8px; }
-  .controls { grid-template-columns: 1fr auto; row-gap: 8px; }
-  /* The Video|Image|Audio switch spans the full bar width on phones
-     with its three options evenly distributed — each option centered
-     in its own third, so the group is perfectly placed at any width
-     or font (owner: "teen options centerly placed nahi hoye"). */
-  .controls .seg { grid-column: 1 / -1; grid-row: 1; justify-self: stretch; }
-  .controls .seg button { flex: 1 1 0; }
+  .controls { display: grid; grid-template-columns: 1fr auto; row-gap: 8px; }
+  /* Phones: the compact centered pill, exactly as it was before the
+     full-width experiment (owner: "pehle wala theek tha") — the
+     desktop absolute centering does not apply here. */
+  .controls .seg { position: relative; left: auto; top: auto; transform: none; grid-column: 1 / -1; grid-row: 1; justify-self: center; }
+  .controls .opt-label { display: inline; }
   .opt-line { grid-column: 1; grid-row: 2; }
   .controls .primary { grid-column: 2; grid-row: 2; }
   /* Audio on mobile goes back to the old compact form: a narrower

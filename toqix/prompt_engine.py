@@ -210,6 +210,84 @@ def _match_rules(rules, text: str):
 
 
 # ---------------------------------------------------------------------------
+# Boilerplate gating — the pickup-truck lesson (panda-snowman QA,
+# 2026-10-15). Camera/domain heuristics injected vehicle and water
+# language into prompts that never asked for those worlds:
+#
+#   * "a cartoon panda ..." matched the "car" camera rule by raw
+#     substring and got "low tracking shot moving with the vehicle"
+#     — the model dutifully rendered a teal pickup truck;
+#   * a panda in the snow detected the ocean_weather domain, whose
+#     defaults pasted "slow cinematic pan across the water" and
+#     "dynamic sky and water" into a scene with no water at all.
+#
+# Rule now: a clause carrying vehicle or water terms survives ONLY
+# when the user's own prompt implies that world — whole-word match,
+# English + Roman Urdu, against both the translated text and the
+# raw original (Roman Urdu implication words live in one or the
+# other depending on whether translation ran). Everything else the
+# engine adds (lighting, mood, consistency locks, flag designs,
+# text legibility) is untouched, and the sound rules are a separate
+# system that is NOT gated here.
+# ---------------------------------------------------------------------------
+
+_VEHICLE_USER_KEYWORDS = (
+    "car", "gaari", "gadi", "truck", "bus", "train", "bike",
+    "motorcycle", "bicycle", "cycle", "airplane", "plane", "jahaz",
+    "boat", "kashti", "ship", "vehicle", "rickshaw", "road",
+    "sarak", "drive", "driving",
+)
+
+_WATER_USER_KEYWORDS = (
+    "water", "paani", "pani", "ocean", "samandar", "sea", "river",
+    "darya", "lake", "jheel", "beach", "wave", "rain", "barish",
+    "baarish", "waterfall", "aabshar", "underwater", "coast",
+    "island", "pool", "swimming", "kinara", "lehar",
+)
+
+_VEHICLE_CLAUSE_TERMS = (
+    "vehicle", "car", "truck", "bus", "train", "boat", "ship",
+    "bike", "motorcycle", "airplane", "traffic",
+)
+
+_WATER_CLAUSE_TERMS = (
+    "water", "ocean", "sea", "river", "lake", "wave", "beach",
+    "underwater",
+)
+
+
+def _has_whole_word(text: str, words) -> bool:
+    """True when any of `words` appears in `text` as a whole word
+    (an optional plural "s" is allowed). The whole-word discipline
+    is the point: "car" must not fire inside "cartoon", nor "sea"
+    inside "season"."""
+    return any(
+        re.search(rf"(?<![a-z]){re.escape(w)}s?(?![a-z])", text)
+        for w in words
+    )
+
+
+def _clause_allowed(clause: str, low: str, original_low: str) -> bool:
+    """Gate one boilerplate clause against the user's own words.
+
+    Vehicle-carrying clauses need a vehicle implication in the
+    prompt; water-carrying clauses need a water implication. A
+    clause with neither kind of term always passes."""
+    c = (clause or "").lower()
+    if _has_whole_word(c, _VEHICLE_CLAUSE_TERMS) and not (
+        _has_whole_word(low, _VEHICLE_USER_KEYWORDS)
+        or _has_whole_word(original_low, _VEHICLE_USER_KEYWORDS)
+    ):
+        return False
+    if _has_whole_word(c, _WATER_CLAUSE_TERMS) and not (
+        _has_whole_word(low, _WATER_USER_KEYWORDS)
+        or _has_whole_word(original_low, _WATER_USER_KEYWORDS)
+    ):
+        return False
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Accuracy layer (v2) — the flag lesson. Small video models garble things
 # that have ONE correct real-world form: national flags, emblems, written
 # text. When a prompt touches one, spell the correct form out element by
@@ -479,6 +557,11 @@ def enhance_prompt(
         or (domain or {}).get("camera_default")
         or _pick(_CAMERA_FALLBACKS, original)
     )
+    if not _clause_allowed(camera, low, original.lower()):
+        # Heuristic boilerplate from a world the user never asked
+        # for (vehicle/water) — replace with a neutral move. The
+        # fallbacks carry no gated terms, so this always passes.
+        camera = _pick(_CAMERA_FALLBACKS, original)
     lighting = (
         _match_rules(_LIGHTING_RULES, low)
         or (domain or {}).get("lighting_default")
@@ -521,7 +604,11 @@ def enhance_prompt(
         parts.append(mood)
     parts.append(preset["tokens"])
     if domain:
-        parts.append(domain["extra_tokens"])
+        # Domain extra tokens are boilerplate too: the ocean domain
+        # must not paste "dynamic sky and water" onto a snow scene.
+        extra_tokens = domain["extra_tokens"]
+        if _clause_allowed(extra_tokens, low, original.lower()):
+            parts.append(extra_tokens)
     detail_clauses, wants_text = _detail_clauses(low)
     parts.extend(detail_clauses)
     if kind == "image":

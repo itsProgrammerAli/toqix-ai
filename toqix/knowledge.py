@@ -185,6 +185,33 @@ ENTRIES: list[dict] = [
                   "getting closer.",
     },
     {
+        "id": "cam_dolly_zoom",
+        "keywords": ["dolly zoom", "vertigo effect", "vertigo",
+                     "contra zoom", "vertigo shot",
+                     "dolly zoom kya", "dolly zoom kia",
+                     "background stretching", "background stretch"],
+        "answer": "A dolly zoom — also called the vertigo effect or a "
+                  "contra zoom — is ONE move made of two motions at "
+                  "once: the camera pushes IN while the zoom pulls OUT "
+                  "(or the exact reverse). The two cancel, so the "
+                  "SUBJECT stays exactly the same size while the "
+                  "BACKGROUND warps: walls stretch away, a corridor "
+                  "lengthens, the world seems to pull back behind the "
+                  "face. It is the classic shot for shock, dread and "
+                  "sudden realization — the moment a character "
+                  "understands something terrible. To ask for it in a "
+                  "video prompt, lock the subject and describe the "
+                  "background move as one continuous line: 'dolly "
+                  "zoom: the woman stays the same size in frame while "
+                  "the hallway stretches and warps behind her, single "
+                  "continuous move'. One honest limit: smaller "
+                  "generators approximate this move imperfectly and "
+                  "often render a plain push-in instead — if the warp "
+                  "does not land, ask for a 'slow push-in, the "
+                  "background widening and stretching behind the "
+                  "subject' and you will get most of the feeling.",
+    },
+    {
         "id": "cam_tracking",
         "keywords": ["tracking", "tracking shot", "follow shot",
                      "steadicam", "follow cam"],

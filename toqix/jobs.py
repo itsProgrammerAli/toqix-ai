@@ -57,6 +57,8 @@ def init_db() -> None:
                 kind            TEXT NOT NULL DEFAULT 'video',
                 progress        INTEGER NOT NULL DEFAULT 0,
                 project_id      TEXT DEFAULT NULL,
+                user_id         TEXT DEFAULT NULL,
+                featured        INTEGER NOT NULL DEFAULT 0,
                 claimed_by      TEXT DEFAULT NULL,
                 claimed_at      REAL DEFAULT NULL,
                 reply           TEXT DEFAULT NULL,
@@ -98,6 +100,8 @@ def init_db() -> None:
             ("kind", "TEXT NOT NULL DEFAULT 'video'"),
             ("progress", "INTEGER NOT NULL DEFAULT 0"),
             ("project_id", "TEXT DEFAULT NULL"),
+            ("user_id", "TEXT DEFAULT NULL"),
+            ("featured", "INTEGER NOT NULL DEFAULT 0"),
             ("claimed_by", "TEXT DEFAULT NULL"),
             ("claimed_at", "REAL DEFAULT NULL"),
             ("reply", "TEXT DEFAULT NULL"),
@@ -183,6 +187,7 @@ def create_job(
     domain: str = "",
     kind: str = "video",
     project_id: str | None = None,
+    user_id: str | None = None,
 ) -> dict:
     if model not in config.MODELS:
         raise ValueError(f"unknown model: {model}")
@@ -213,8 +218,9 @@ def create_job(
             INSERT INTO jobs (id, prompt, translated, enhanced_prompt,
                               negative_prompt, style, aspect, duration,
                               model, seed, status, consent, domain, kind,
-                              progress, project_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, 0, ?, ?, ?)
+                              progress, project_id, user_id,
+                              created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, 0, ?, ?, ?, ?)
             """,
             (
                 job_id, enhanced["original"], enhanced["translated"],
@@ -222,7 +228,7 @@ def create_job(
                 style, aspect, float(duration), model, int(seed),
                 1 if consent else 0,
                 domain or enhanced.get("domain", ""), kind,
-                project_id or None, now, now,
+                project_id or None, user_id or None, now, now,
             ),
         )
     job = get_job(job_id)
@@ -245,15 +251,30 @@ def get_job(job_id: str) -> dict | None:
     return _row_to_dict(row) if row else None
 
 
-def list_jobs(limit: int = 100, include_chat: bool = False) -> list[dict]:
+def list_jobs(limit: int = 100, include_chat: bool = False,
+              owner_id: str | None = None,
+              featured_only: bool = False) -> list[dict]:
     # Chat jobs are conversations, not creations: they stay out of the
     # public feed (and the dataset curation) unless include_chat is set.
-    # The worker runner passes include_chat=1 so it can claim them.
-    where = "" if include_chat else " WHERE kind != 'chat'"
+    # Privacy scoping (accounts release): with featured_only, ONLY the
+    # admin-featured showcase is visible (anonymous visitors); with
+    # owner_id, that user's own jobs plus the featured showcase;
+    # with neither, the full list (admin / machine access only — the
+    # server enforces who may ask for it).
+    clauses: list[str] = []
+    params: list = []
+    if not include_chat:
+        clauses.append("kind != 'chat'")
+    if featured_only:
+        clauses.append("featured = 1")
+    elif owner_id is not None:
+        clauses.append("(user_id = ? OR featured = 1)")
+        params.append(owner_id)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with _conn() as conn:
         rows = conn.execute(
             "SELECT * FROM jobs" + where
-            + " ORDER BY created_at DESC LIMIT ?", (limit,)
+            + " ORDER BY created_at DESC LIMIT ?", (*params, limit)
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
@@ -269,20 +290,95 @@ def list_project_jobs(project_id: str, limit: int = 500) -> list[dict]:
     return [_row_to_dict(r) for r in rows]
 
 
-def gallery(limit: int = 100) -> list[dict]:
+def gallery(limit: int = 100, owner_id: str | None = None,
+            featured_only: bool = False) -> list[dict]:
+    # Same privacy scoping as list_jobs, over finished creations.
+    scope = ""
+    params: list = []
+    if featured_only:
+        scope = " AND featured = 1"
+    elif owner_id is not None:
+        scope = " AND (user_id = ? OR featured = 1)"
+        params.append(owner_id)
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM jobs WHERE status = 'done' ORDER BY updated_at DESC LIMIT ?",
-            (limit,),
+            "SELECT * FROM jobs WHERE status = 'done'" + scope
+            + " ORDER BY updated_at DESC LIMIT ?",
+            (*params, limit),
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
+
+
+def recent_job_count(user_id: str, seconds: float) -> int:
+    """Jobs one user created inside a window (rate-abuse watch)."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM jobs WHERE user_id = ?"
+            " AND created_at > ?",
+            (user_id, time.time() - seconds),
+        ).fetchone()
+    return int(row["n"])
+
+
+def queue_counts() -> dict:
+    """Counts-only snapshot for the fleet watchdog / stats endpoint —
+    never exposes prompts or owners."""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT status, COUNT(*) AS n FROM jobs GROUP BY status"
+        ).fetchall()
+    counts = {r["status"]: r["n"] for r in rows}
+    return {
+        "queued": counts.get("queued", 0) + counts.get("exported", 0),
+        "generating": counts.get("generating", 0),
+        "done": counts.get("done", 0),
+        "failed": counts.get("failed", 0),
+        "cancelled": counts.get("cancelled", 0),
+    }
+
+
+def claim_next_waiting(worker: str,
+                       handled_keys: list | None = None) -> dict | None:
+    """Server-side claim for the worker mesh (accounts release).
+
+    Workers no longer download the whole job list (it now carries
+    per-user creations): they POST here and the server atomically
+    claims the oldest waiting job for them — real user submissions
+    ("queued") before legacy "exported" packages, oldest first.
+    Same-content duplicates within the waiting pool collapse to one
+    candidate, and content keys the worker already handled this
+    session (``handled_keys``: [kind, prompt, aspect, duration,
+    style]) are skipped, preserving the runner's dedupe behaviour.
+    """
+    release_stale_claims()
+    handled = {tuple(str(x) for x in key) for key in (handled_keys or [])}
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE status IN ('queued', 'exported')"
+            " ORDER BY CASE status WHEN 'queued' THEN 0 ELSE 1 END,"
+            " created_at ASC"
+        ).fetchall()
+    seen: set = set()
+    for row in rows:
+        job = _row_to_dict(row)
+        key = (str(job.get("kind") or "video"),
+               str((job.get("prompt") or "").strip().lower()),
+               str(job.get("aspect")), str(job.get("duration")),
+               str(job.get("style")))
+        if key in handled or key in seen:
+            continue
+        seen.add(key)
+        claimed = claim_job(job["id"], worker)
+        if claimed is not None:
+            return claimed
+    return None
 
 
 def update_job(job_id: str, **fields) -> dict | None:
     allowed = {
         "status", "output_path", "thumb_path", "error", "package_path",
         "rating", "thumbs", "consent", "domain", "progress",
-        "claimed_by", "claimed_at",
+        "claimed_by", "claimed_at", "featured", "user_id",
     }
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:

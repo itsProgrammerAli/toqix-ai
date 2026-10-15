@@ -760,6 +760,20 @@ ENTRIES: list[dict] = [
     },
     # ---- creator & viral know-how ---------------------------------------
     {
+        "id": "viral_general",
+        "keywords": ["viral", "go viral", "viral kaise", "viral karna",
+                     "viral hone", "how to go viral",
+                     "makes a video viral", "video viral"],
+        "answer": "No one can promise viral — but the videos that "
+                  "spread share a pattern: a hook in the first 2 "
+                  "seconds (result first, no intro), a length people "
+                  "finish (25–30 seconds for a story Short), one "
+                  "clear idea, captions in the exact spoken words, "
+                  "and a character or series viewers return for. "
+                  "Post steadily, watch what people rewatch, and "
+                  "make more of that.",
+    },
+    {
         "id": "viral_hook",
         "keywords": ["hook", "first 2 seconds", "first seconds",
                      "viral hook", "hook kya hai", "pehle seconds"],
@@ -774,7 +788,9 @@ ENTRIES: list[dict] = [
         "id": "viral_shorts_length",
         "keywords": ["shorts length", "how long should a short",
                      "short video length", "viral length",
-                     "best length for shorts"],
+                     "best length for shorts", "short kitna lamba",
+                     "shorts kitne seconds", "short ki length",
+                     "how long should a youtube short"],
         "answer": "For a story Short, 25–30 seconds is the sweet "
                   "spot: long enough for a three-beat story "
                   "(trouble, help, payoff), short enough that "
@@ -1251,7 +1267,11 @@ ENTRIES: list[dict] = [
 # inside "cathedral".
 # ---------------------------------------------------------------------------
 def _norm(text: str) -> str:
-    return " ".join((text or "").lower().split())
+    s = " ".join((text or "").lower().split())
+    # Roman-Urdu spelling fold: many users write "hay" where the
+    # keywords use "hai" (same word, two spellings). Fold the
+    # message and the keywords identically so both sides meet.
+    return re.sub(r"\bhay\b", "hai", s)
 
 
 def score_entry(text: str, entry: dict) -> tuple[int, int]:
@@ -1264,17 +1284,32 @@ def score_entry(text: str, entry: dict) -> tuple[int, int]:
     norm = _norm(text)
     score = 0
     matched = 0
+    tokens = set(norm.split())
     for kw in entry["keywords"]:
         k = _norm(kw)
         if not k:
             continue
         if " " in k or "-" in k:
             hit = k in norm
+            if hit:
+                score += len(k) + 2
+                matched += len(k)
+            elif (" " in k and len(k.split()) >= 4
+                    and all(w in tokens for w in k.split())):
+                # Word-set match (4+ word phrases only — shorter
+                # phrases like "make a video" are too generic to
+                # trust scattered): the keyword's words are all
+                # here but not adjacent ("how long should a YOUTUBE
+                # short" vs keyword "how long should a short").
+                # Scores the phrase length without the exact-phrase
+                # bonus, so an exact phrase elsewhere still wins.
+                score += len(k)
+                matched += len(k)
         else:
             hit = re.search(rf"\b{re.escape(k)}\b", norm) is not None
-        if hit:
-            score += len(k) + (2 if " " in k else 0)
-            matched += len(k)
+            if hit:
+                score += len(k)
+                matched += len(k)
     return score, matched
 
 

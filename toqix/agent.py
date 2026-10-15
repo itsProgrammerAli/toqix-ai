@@ -899,6 +899,14 @@ def _greeting_reply(project: dict | None, norm: str = "") -> str:
 
 
 # --- questions are answered, never generated ------------------------------
+# Words that mark a message as a request for information rather than
+# a scene/character description — EN + Roman Urdu question flavour.
+_INFO_MARKERS = {"kia", "kya", "kaise", "kitna", "kitni", "kitne",
+                 "konsa", "konsi", "kaun", "kis", "matlab", "batao",
+                 "samjhao", "lagta", "lagti", "lagega", "chahiye",
+                 "what", "how", "why", "when", "which", "who",
+                 "tips", "advice", "meaning", "explain", "difference"}
+
 _IDENTITY_PATTERNS = (
     r"who\s+(built|made|created|developed|designed|invented)\s+you",
     r"who\s+(built|made|created|developed)\s+(toqix|this|it)\b",
@@ -1764,9 +1772,18 @@ def _chat_no_project(message: str, low: str, norm: str) -> dict:
 
     entry = None
     cand = knowledge.lookup(message)
-    if (cand and knowledge.match_ratio(message, cand) >= 0.6
-            and len(norm.split()) <= 5):
-        entry = cand
+    if cand:
+        # A confident KB hit answers in the lobby too — but only
+        # when the message is shaped like a request for information
+        # (a marker word or a question mark), or is a very short
+        # topic probe ("drone shot"). A plain description stays a
+        # character description: "a cinematic panda" must still
+        # start the series, never earn a lecture about "cinematic".
+        toks = set(norm.split())
+        if (toks & _INFO_MARKERS or message.strip().endswith("?")
+                or (knowledge.match_ratio(message, cand) >= 0.6
+                    and len(norm.split()) <= 5)):
+            entry = cand
     if entry:
         return _qa_reply(None, entry)
 

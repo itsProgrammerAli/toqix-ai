@@ -38,6 +38,8 @@ class ProgressIn(BaseModel):
     progress: int = Field(..., ge=0, le=100)
     status: str | None = None      # optional transition, e.g. "generating"
     worker: str | None = None      # worker identity — heartbeat refresh
+    error: str | None = None       # failure detail — stored on the job so a
+                                   # failed job always says WHY on the site
 
 
 class ClaimIn(BaseModel):
@@ -250,6 +252,8 @@ def job_progress(job_id: str, body: ProgressIn):
         fields["status"] = body.status
     if body.worker:
         fields["claimed_by"] = body.worker
+    if body.error:
+        fields["error"] = body.error[:500]
     try:
         return jobs.update_job(job_id, **fields)
     except ValueError as exc:

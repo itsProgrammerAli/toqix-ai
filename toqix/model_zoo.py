@@ -105,9 +105,8 @@ MODELS: list[dict] = [
         "size_gb": 3.0,
         "vram_gb": 4.0,
         "quality_tier": 2,
-        "status": "active",
-        "note": "Generates the sound bed muxed onto every video "
-                "(runner sound stage, fp16). Licence is "
+        "status": "candidate",
+        "note": "FALLBACK / ambience layer since 2026-10-16 — MMAudio (video-conditioned) is the default sound stage now; MusicGen runs only if MMAudio fails. Previously generated the sound bed muxed onto every video (runner sound stage, fp16). Licence is "
                 "NON-COMMERCIAL — fine for the owner's own channel "
                 "experiments, must be revisited before any paid "
                 "product use.",
@@ -222,6 +221,46 @@ MODELS: list[dict] = [
                 "Needs a GPU test for voice consistency with the "
                 "site's 6 character voices before adoption.",
     },
+    {
+        "id": "hkchengrex/MMAudio",
+        "name": "MMAudio (video-to-audio)",
+        "kind": "audio_music",
+        "task": "video-to-audio",
+        "license": "CC-BY-NC 4.0 (weights — non-commercial); "
+                   "code MIT",
+        "size_gb": 6.0,
+        "vram_gb": 6.0,
+        "quality_tier": 3,
+        "status": "active",
+        "note": "DEFAULT sound stage since 2026-10-16 — GPU-proven live (job e265c83c8abc: 'sound: mmaudio ok (330s, large_44k_v2)'). Integrated in the runner as the MMAudio-first stage; MusicGen is fallback/ambience only. Verified at source 2026-10-16 (official GitHub "
+                "repo + HF card). Generates sound CONDITIONED ON "
+                "the rendered video frames — a Synchformer module "
+                "aligns the audio to the frames — so sounds land "
+                "when the action happens: synchronized by "
+                "construction, the direct fix for the prompt-only "
+                "MusicGen bed's mismatch and aage-peeche errors "
+                "(owner's sound doctrine, 2026-10-16). Runs its "
+                "own repo code (demo.py), NOT a diffusers "
+                "pipeline; README documents ~6 GB VRAM for fp16 "
+                "inference, so it fits a free 16 GB T4. size_gb "
+                "is the recommended large_44k_v2 kit (3.9 GB flow "
+                "net + 1.2 GB 44k VAE + 0.9 GB Synchformer); a "
+                "small-16k kit totals ~2.6 GB. Caveats from the "
+                "README itself: generated speech can be "
+                "unintelligible and background music is not its "
+                "strength — it is a sound-effects/sync stage, "
+                "not a music composer, and the weights licence "
+                "is NON-COMMERCIAL, the same restriction as the "
+                "active MusicGen. Adoption = GPU smoke test as "
+                "the runner's sound stage, then output QA. "
+                "INTEGRATED 2026-10-16: vendored into the runner "
+                "(mmaudio_bridge.py child process, upstream repo "
+                "in vendor/mmaudio) as the DEFAULT sound stage "
+                "in all 4 notebook copies — MusicGen is now the "
+                "fallback ambience layer. Status stays candidate "
+                "until the GPU smoke test passes; only then does "
+                "it flip to active.",
+    },
     # ------------------------------------------------------------------
     # WATCH — known, not yet evaluated. Sizes/licenses UNVERIFIED.
     # ------------------------------------------------------------------
@@ -283,6 +322,39 @@ MODELS: list[dict] = [
                 "KV-cache headroom on a 16 GB T4 (already rejected "
                 "once as OOM-prone). Revisit only with a bigger "
                 "GPU or a proven 4-bit recipe.",
+    },
+    {
+        "id": "character-ai/Ovi",
+        "name": "Ovi (joint audio+video)",
+        "kind": "video",
+        "task": "t2av",
+        "license": "Apache-2.0 (repo LICENSE — verified "
+                   "2026-10-16)",
+        "size_gb": 40.0,
+        "vram_gb": 32.0,
+        "quality_tier": 4,
+        "status": "watch",
+        "note": "Joint audio+video generation — a Twin-DiT "
+                "(Wan 2.2 5B video branch + a 5B audio branch "
+                "pretrained from scratch; borrows MMAudio's "
+                "audio VAE) generates picture and sound TOGETHER, "
+                "so sync is by construction: the long-term answer "
+                "to the owner's sound doctrine. Verified at "
+                "source 2026-10-16 (this entry is verified, "
+                "unlike the older watch entries): checkpoints + "
+                "inference code released Oct 2025, v1.1 (10 s) "
+                "Nov 2025; own repo code — the id is the GitHub "
+                "repo, whose download_weights.py pulls the "
+                "weights from HF (each variant checkpoint is "
+                "23.3 GB; a usable install is ~40 GB on disk). "
+                "WHY WATCH, not candidate: the README requires "
+                "~32 GB VRAM minimum WITH CPU offload (80 GB "
+                "recommended; the community fp8 build still "
+                "needs ~24 GB) — it does not fit the fleet's "
+                "16 GB T4s in any documented configuration. "
+                "Revisit when the fleet gets a bigger GPU, or a "
+                "distilled/quantized release lands (both are on "
+                "the repo's own TODO list).",
     },
 ]
 

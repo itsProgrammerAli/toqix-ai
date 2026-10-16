@@ -133,6 +133,9 @@ class ProgressIn(BaseModel):
     worker: str | None = None      # worker identity — heartbeat refresh
     error: str | None = None       # failure detail — stored on the job so a
                                    # failed job always says WHY on the site
+    note: str | None = None        # stage telemetry (<=300 chars) — the
+                                   # LATEST note is stored on the job; posts
+                                   # without a note never clear it
 
 
 class ClaimIn(BaseModel):
@@ -528,6 +531,8 @@ def job_progress(job_id: str, body: ProgressIn):
         fields["claimed_by"] = body.worker
     if body.error:
         fields["error"] = body.error[:500]
+    if body.note is not None:
+        fields["note"] = body.note[:300]
     try:
         return jobs.update_job(job_id, **fields)
     except ValueError as exc:

@@ -120,6 +120,7 @@ def init_db() -> None:
             ("reply", "TEXT DEFAULT NULL"),
             ("reply_done", "INTEGER NOT NULL DEFAULT 0"),
             ("queued_jobs", "TEXT NOT NULL DEFAULT ''"),
+            ("note", "TEXT NOT NULL DEFAULT ''"),
         ):
             if col not in existing:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {col} {ddl}")
@@ -129,6 +130,9 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     d["kind"] = d.get("kind") or "video"
     d["progress"] = int(d.get("progress") or 0)
+    # Worker telemetry note (latest stage note posted with a progress
+    # report, e.g. the sound stage's outcome) — '' when none was posted.
+    d["note"] = d.get("note") or ""
     # Heavy flag: a 10s+ video is the heavy class of work (see
     # config.HEAVY_DURATION) — derived here, never stored, so rows
     # written before the flag existed behave exactly as before.
@@ -460,7 +464,7 @@ def update_job(job_id: str, **fields) -> dict | None:
     allowed = {
         "status", "output_path", "thumb_path", "error", "package_path",
         "rating", "thumbs", "consent", "domain", "progress",
-        "claimed_by", "claimed_at", "featured", "user_id",
+        "claimed_by", "claimed_at", "featured", "user_id", "note",
     }
     fields = {k: v for k, v in fields.items() if k in allowed}
     if not fields:
